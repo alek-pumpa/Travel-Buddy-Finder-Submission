@@ -39,7 +39,7 @@ A full-stack web application that helps travelers find compatible travel compani
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/travel-buddy-finder.git
+git clone https://github.com/alek-pumpa/travel-buddy-finder-submission.git
 cd travel-buddy-finder
 ```
 
@@ -60,7 +60,7 @@ npm install
 Backend (.env):
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/travel-buddy
+MONGODB_URI=mongodb://localhost:27017/travel-buddy-finder
 JWT_SECRET=your_secure_secret
 NODE_ENV=development
 ```
@@ -191,6 +191,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Your Name - [@yourusername](https://twitter.com/yourusername)
-
-Project Link: [https://github.com/yourusername/travel-buddy-finder](https://github.com/yourusername/travel-buddy-finder)
+Filip Gavriloski 5427 - [@Gavriloskii]
+Aleksandar Gjorgjevikj 5572 - [@alek-pumpa]
