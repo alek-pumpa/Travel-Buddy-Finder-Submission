@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import React, { useState, useEffect, useCallback } from 'react';
 import './MatchNotification.css';
 
 const MatchNotification = ({ match, onClose }) => {
   const [isVisible, setIsVisible] = useState(true);
-  const dispatch = useDispatch();
 
   useEffect(() => {
     // Auto dismiss after 5 seconds
@@ -13,12 +11,12 @@ const MatchNotification = ({ match, onClose }) => {
     }, 5000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [handleClose]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsVisible(false);
     if (onClose) onClose();
-  };
+  }, [onClose]);
 
   if (!isVisible) return null;
 
