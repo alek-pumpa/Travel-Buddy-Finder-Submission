@@ -57,6 +57,7 @@ export const auth = {
         console.log('Attempting login...');
         const response = await api.post('/auth/login', credentials);
         console.log('Login response:', response);
+        console.log('Response headers:', response.headers);
         
         // Store token in localStorage
         if (response.data.token) {
@@ -142,6 +143,8 @@ export const journals = {
 
 // Create a named export for the API object
 export const apiService = {
+    // Add this new method for liking a post
+    likePost: (postId) => api.post(`/posts/${postId}/like`), // New API call for liking a post
     auth,
     chat,
     users,

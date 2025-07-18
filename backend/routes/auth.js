@@ -203,6 +203,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
         }
 
         // Reset login attempts on successful login
+        const userId = user._id; // Get user ID from the database
         if (user.loginAttempts > 0 || user.lockUntil) {
             user.loginAttempts = 0;
             user.lockUntil = undefined;

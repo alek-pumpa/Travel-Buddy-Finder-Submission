@@ -74,3 +74,30 @@ exports.getPosts = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// Like a post
+exports.likePost = async (req, res) => {
+    try {
+        const postId = req.params.id;
+        const post = await Post.findById(postId);
+
+        if (!post) {
+            return res.status(404).json({ message: 'Post not found' });
+        }
+
+        // Toggle like status
+        post.isLiked = !post.isLiked;
+        post.likes += post.isLiked ? 1 : -1; // Update like count
+
+        await post.save();
+
+        res.status(200).json({
+            message: 'Post liked successfully',
+            likes: post.likes,
+            isLiked: post.isLiked
+        });
+    } catch (error) {
+        console.error('Error liking post:', error);
+        res.status(500).json({ message: 'Failed to like post', error: error.message });
+    }
+};

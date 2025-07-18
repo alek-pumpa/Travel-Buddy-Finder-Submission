@@ -4,6 +4,7 @@ import { ChatBubbleLeftIcon, HeartIcon, BookmarkIcon, ShareIcon } from '@heroico
 import { HeartIcon as HeartIconSolid, BookmarkIcon as BookmarkIconSolid } from '@heroicons/react/24/solid';
 import ForumPost from '../components/ForumPost';
 import { createPost, getPosts } from '../services/forumService';
+import { apiService } from '../services/api'; // Add this import for apiService
 import { getToken, getUser } from '../services/authService';
 import { toast } from 'react-hot-toast';
 
@@ -33,7 +34,7 @@ const ForumPage = () => {
             }
         } else {
             // Redirect to login if no token
-            window.location.href = '/login';
+            // window.location.href = '/login';
         }
         const fetchPosts = async () => {
             try {
@@ -76,21 +77,29 @@ const ForumPage = () => {
     const [selectedCategory, setSelectedCategory] = useState('All Topics');
     const [sortBy, setSortBy] = useState('recent');
 
-    const handleLike = (postId) => {
-        setPosts(posts.map(post => {
-            if (post.id === postId) {
-                const newLikeStatus = !post.isLiked;
-                return {
-                    ...post,
-                    isLiked: newLikeStatus,
-                    stats: {
-                        ...post.stats,
-                        likes: post.stats.likes + (newLikeStatus ? 1 : -1)
+    const handleLike = async (postId) => {
+        try {
+            const response = await apiService.likePost(postId);
+            if (response.status === 200) {
+                setPosts(posts.map(post => {
+                    if (post._id === postId) {
+                        const newLikeStatus = !post.isLiked;
+                        return {
+                            ...post,
+                            isLiked: newLikeStatus,
+                            stats: {
+                                ...post.stats,
+                                likes: response.data.likes // Use the updated likes from the response
+                            }
+                        };
                     }
-                };
+                    return post;
+                }));
             }
-            return post;
-        }));
+        } catch (error) {
+            console.error('Error liking post:', error);
+            toast.error('Failed to like post');
+        }
     };
 
     const handleBookmark = (postId) => {

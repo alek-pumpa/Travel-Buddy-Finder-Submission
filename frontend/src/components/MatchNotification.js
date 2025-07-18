@@ -4,6 +4,11 @@ import './MatchNotification.css';
 const MatchNotification = ({ match, onClose }) => {
   const [isVisible, setIsVisible] = useState(true);
 
+  const handleClose = useCallback(() => {
+    setIsVisible(false);
+    if (onClose) onClose();
+  }, [onClose]);
+
   useEffect(() => {
     // Auto dismiss after 5 seconds
     const timer = setTimeout(() => {
@@ -12,11 +17,6 @@ const MatchNotification = ({ match, onClose }) => {
 
     return () => clearTimeout(timer);
   }, [handleClose]);
-
-  const handleClose = useCallback(() => {
-    setIsVisible(false);
-    if (onClose) onClose();
-  }, [onClose]);
 
   if (!isVisible) return null;
 
