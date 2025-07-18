@@ -13,27 +13,41 @@ const User = require('../models/User');
 
 // Helper function to verify token and get user
 const verifyAndGetUser = async (req, includePassword = false) => {
-    const { jwt: token } = req.signedCookies;
+    // Get token from same sources as middleware
+    let token = req.signedCookies.jwt;
+    if (!token && req.headers.authorization?.startsWith('Bearer')) {
+        token = req.headers.authorization.split(' ')[1];
+    }
+    // Add development test token support
+    if (process.env.NODE_ENV === 'development' && req.headers['x-test-auth']) {
+        token = req.headers['x-test-auth'];
+    }
 
     if (!token) {
         throw new AppError('Not logged in', 401);
     }
 
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    // Get user
-    const query = User.findById(decoded.id);
-    if (includePassword) {
-        query.select('+password');
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const query = User.findById(decoded.id);
+        if (includePassword) query.select('+password');
+        
+        const user = await query;
+        // Add active status check to match middleware
+        if (!user || !user.active) {
+            throw new AppError('User not found or account inactive', 401);
+        }
+        return user;
+    } catch (err) {
+        // Align error handling with middleware
+        if (err.name === 'TokenExpiredError') {
+            throw new AppError('Your token has expired. Please log in again.', 401);
+        }
+        if (err.name === 'JsonWebTokenError') {
+            throw new AppError('Invalid token. Please log in again.', 401);
+        }
+        throw err;
     }
-    
-    const user = await query;
-    if (!user) {
-        throw new AppError('User not found', 404);
-    }
-
-    return user;
 };
 
 // Helper function to create and send token

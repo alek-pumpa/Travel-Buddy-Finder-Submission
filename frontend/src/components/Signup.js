@@ -163,17 +163,7 @@ const Signup = () => {
                             </div>
                         )}
 
-                        {/* Password requirements hint */}
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            <p className="font-medium mb-1">Password must contain:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li>At least 8 characters</li>
-                                <li>At least one number</li>
-                                <li>At least one uppercase letter</li>
-                                <li>At least one lowercase letter</li>
-                                <li>At least one special character (!@#$%^&*)</li>
-                            </ul>
-                        </div>
+                        
 
                         <div>
                             <label
@@ -261,6 +251,18 @@ const Signup = () => {
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                             </div>
+                        </div>
+
+                        {/* Password requirements hint */}
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                            <p className="font-medium mb-1">Password must contain:</p>
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li>At least 8 characters</li>
+                                <li>At least one number</li>
+                                <li>At least one uppercase letter</li>
+                                <li>At least one lowercase letter</li>
+                                <li>At least one special character (!@#$%^&*)</li>
+                            </ul>
                         </div>
 
                         <div className="mt-6">

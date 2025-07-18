@@ -238,12 +238,7 @@ const SwipeToMatch = () => {
                 abortControllerRef.current.signal
             );
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = response.data;
             
             const validMatches = data.data
                 .filter(match => (
@@ -501,6 +496,11 @@ const SwipeToMatch = () => {
             try {
                 setIsLoading(true);
                 setLastSwipeDirection(direction);
+
+                if (!socketService.connected) {
+                    toast.error('Socket not connected. Please refresh the page.');
+                    return;
+                }
                 
                 // Track analytics before any state updates
                 analytics.track('Swipe Action', {

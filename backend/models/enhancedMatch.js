@@ -427,11 +427,8 @@ enhancedMatchSchema.methods.calculateTravelPriority = function(user1, user2) {
         user2.travelPreferences?.destinations
     );
     return (dateOverlap + destinationMatch) / 2;
-        adjustedWeights[key] = (weight * preferenceAdjustments[key]) / totalWeight;
-    });
-
-    return adjustedWeights;
 };
+
 
 // Helper methods for compatibility calculations
 enhancedMatchSchema.methods.calculatePersonalityCompatibility = async function(user1, user2) {

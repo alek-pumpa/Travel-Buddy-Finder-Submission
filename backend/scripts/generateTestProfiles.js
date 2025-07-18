@@ -32,7 +32,7 @@ function generateRandomProfile(index) {
     return {
         name: `Test User ${index}`,
         email: `testuser${index}@example.com`,
-        password: 'password123',
+        password: 'Password123!',
         personalityType: personalityTypes[Math.floor(Math.random() * personalityTypes.length)],
         travelPreferences: {
             budget: budgetRanges[Math.floor(Math.random() * budgetRanges.length)],
