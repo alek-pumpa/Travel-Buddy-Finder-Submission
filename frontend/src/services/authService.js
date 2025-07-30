@@ -1,22 +1,26 @@
 import { auth } from './api';
 
-export const getToken = () => {
+// Helper: get cookie value by name
+const getCookie = (name) => {
     const cookies = document.cookie.split('; ');
-    const tokenCookie = cookies.find(c => c.startsWith('jwt'));
-    return tokenCookie ? tokenCookie.split('=')[1] : null;
+    const cookie = cookies.find(c => c.startsWith(name + '='));
+    return cookie ? decodeURIComponent(cookie.split('=')[1]) : null;
 };
 
+export const getToken = () => getCookie('jwt');
+
 export const getUser = () => {
-    const user = localStorage.getItem('user');
+    const user = getCookie('user');
     return user ? JSON.parse(user) : null;
 };
 
 export const setUser = (user) => {
-    localStorage.setItem('user', JSON.stringify(user));
+    // Set cookie for 7 days, adjust as needed
+    document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
 };
 
 export const removeUser = () => {
-    localStorage.removeItem('user');
+    document.cookie = 'user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
 };
 
 export const isAuthenticated = () => {
@@ -30,7 +34,7 @@ export const login = async (credentials) => {
     try {
         const response = await auth.login(credentials);
         console.log('Login response:', response);
-        
+
         if (response.data?.user) {
             console.log('Storing user data:', response.data.user);
             setUser(response.data.user);
@@ -39,7 +43,7 @@ export const login = async (credentials) => {
             console.error('No user data found in response');
             throw new Error('User data not found in login response');
         }
-        
+
         return response;
     } catch (error) {
         console.error('Login error:', error);

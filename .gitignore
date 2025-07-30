@@ -11,3 +11,13 @@ logs
 
 # Uploads directory
 uploads/
+
+# Build directories
+dist/
+build/
+# Coverage reports
+coverage/
+# Temporary files
+tmp/
+# IDE specific files
+.vscode/

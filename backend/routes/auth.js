@@ -84,7 +84,7 @@ const createSendToken = (user, statusCode, res) => {
 
 
 // Register new user
-router.post('/signup', async (req, res, next) => {
+router.post('/signup', upload('photo'), async (req, res, next) => {
     try {
         console.log('Signup request body:', req.body);
         console.log('Headers:', req.headers);
@@ -95,6 +95,10 @@ router.post('/signup', async (req, res, next) => {
             console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name });
             throw new AppError('Please provide email, password and name', 400);
         }
+
+         if (!req.file) {
+            throw new AppError('Profile photo is required', 400);
+         }
 
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -116,8 +120,8 @@ router.post('/signup', async (req, res, next) => {
         if (!/[a-z]/.test(password)) {
             passwordErrors.push('Password must contain at least one lowercase letter');
         }
-        if (!/[!@#$%^&*]/.test(password)) {
-            passwordErrors.push('Password must contain at least one special character (!@#$%^&*)');
+        if (!/[.!@#$%^&*]/.test(password)) {
+            passwordErrors.push('Password must contain at least one special character (.!@#$%^&*)');
         }
 
         if (passwordErrors.length > 0) {
@@ -137,10 +141,12 @@ router.post('/signup', async (req, res, next) => {
                 password,
                 name,
                 passwordConfirm: password, // Add this to match the pre-save hook expectation
+                photo: req.file.filename,
                 travelPreferences: {
                     budget: 'moderate',
                     pace: 'moderate',
-                    accommodationPreference: 'flexible'
+                    accommodationPreference: 'flexible',
+                    interests: ['nature', 'culture', 'food']
                 }
             };
 

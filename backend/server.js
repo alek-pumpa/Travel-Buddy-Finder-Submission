@@ -134,6 +134,8 @@ app.use('/api/groups', groupRoutes);
 app.use('/api/journals', journalRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/forum', forumRoutes);
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/chat', require('./routes/chat'));
 
 // Handle OPTIONS requests specifically for forum routes
 app.options('/api/forum/posts', cors(corsOptions));
