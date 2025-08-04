@@ -85,32 +85,41 @@ class SocketService extends BaseSocketService {
         this.emit(SOCKET_EVENTS.MESSAGE, message);
     }
 
-    swipe(userId, direction) {
-        return new Promise((resolve, reject) => {
-            if (!this.connected) {
-                reject(new Error('Socket not connected'));
-                return;
+swipe(userId, direction) {
+    return new Promise((resolve, reject) => {
+        if (!this.socket || !this.connected) {
+            reject(new Error('Socket not connected'));
+            return;
+        }
+
+        let timeoutId;
+        const cleanup = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            this.socket.off(SOCKET_EVENTS.SWIPE_RESULT);
+        };
+
+        console.log(`Emitting swipe for user: ${userId}, direction: ${direction}`);
+        
+        this.socket.on(SOCKET_EVENTS.SWIPE_RESULT, (response) => {
+            cleanup();
+            if (response && response.success) {
+                console.log('Swipe successful:', response);
+                resolve(response);
+            } else {
+                console.error('Swipe failed:', response?.error || 'Unknown error');
+                reject(new Error(response?.error || 'Swipe failed'));
             }
-
-            this.emit(SOCKET_EVENTS.SWIPE, { targetUserId: userId, direction });
-            
-            const timeout = setTimeout(() => {
-                this.off(SOCKET_EVENTS.SWIPE_RESULT);
-                reject(new Error('Swipe response timeout'));
-            }, 5000);
-
-            this.on(SOCKET_EVENTS.SWIPE_RESULT, (response) => {
-                clearTimeout(timeout);
-                this.off(SOCKET_EVENTS.SWIPE_RESULT);
-                
-                if (!response.success) {
-                    reject(new Error(response.error));
-                } else {
-                    resolve(response);
-                }
-            });
         });
-    }
+
+        this.socket.emit(SOCKET_EVENTS.SWIPE, { targetUserId: userId, direction });
+
+        timeoutId = setTimeout(() => {
+            cleanup();
+            console.error('Swipe timeout for user:', userId);
+            reject(new Error('Swipe response timeout'));
+        }, 30000); // Increased to 30 seconds
+    });
+}
 
     setTypingStatus(conversationId, isTyping) {
         this.emit(SOCKET_EVENTS.TYPING, { conversationId, isTyping });

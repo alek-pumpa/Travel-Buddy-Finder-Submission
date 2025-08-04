@@ -21,32 +21,9 @@ api.interceptors.response.use(
     (response) => response,
     async (error) => {
         if (error.response?.status === 401) {
-            console.log('401 Unauthorized error detected. Clearing auth data...');
-            // Clear any stored auth data
             document.cookie = 'jwt=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            console.log('Auth data cleared. Redirecting to login...');
             window.location.href = '/login';
         }
-        return Promise.reject(error);
-    }
-);
-
-// Add request interceptor to handle auth token
-api.interceptors.request.use(
-    (config) => {
-        const token = document.cookie.split('; ').find(row => row.startsWith('jwt='));
-        console.log('Request interceptor - token:', token ? 'exists' : 'missing');
-        if (token) {
-            console.log('Adding Authorization header with token');
-            config.headers.Authorization = `Bearer ${token.split('=')[1]}`;
-        } else {
-            console.log('No token found in cookies');
-        }
-        return config;
-    },
-    (error) => {
         return Promise.reject(error);
     }
 );
@@ -54,35 +31,7 @@ api.interceptors.request.use(
 // Auth endpoints
 export const auth = {
     login: async (credentials) => {
-        console.log('Attempting login...');
         const response = await api.post('/auth/login', credentials);
-        console.log('Login response:', response);
-        console.log('Response headers:', response.headers);
-        
-        // Store token in localStorage
-        if (response.data.token) {
-            console.log('Storing token in localStorage');
-            localStorage.setItem('token', response.data.token);
-        } else {
-            console.log('No token found in response data');
-        }
-        
-        // Store token in cookies
-        if (response.headers['set-cookie']) {
-            console.log('Set-Cookie headers:', response.headers['set-cookie']);
-            const jwtCookie = response.headers['set-cookie']
-                .find(c => c.startsWith('jwt='));
-            if (jwtCookie) {
-                console.log('Storing JWT cookie:', jwtCookie);
-                document.cookie = jwtCookie;
-            } else {
-                console.log('No JWT cookie found in headers');
-            }
-        } else {
-            console.log('No Set-Cookie headers found');
-        }
-        
-        console.log('Login complete, returning response');
         return response;
     },
     signup: async (userData) => {
@@ -143,8 +92,7 @@ export const journals = {
 
 // Create a named export for the API object
 export const apiService = {
-    // Add this new method for liking a post
-    likePost: (postId) => api.post(`/posts/${postId}/like`), // New API call for liking a post
+    likePost: (postId) => api.post(`/posts/${postId}/like`),
     auth,
     chat,
     users,

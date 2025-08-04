@@ -81,24 +81,38 @@ class SocketService extends BaseSocketService {
         this.reconnectAttempts.delete(userId);
 
         // Handle swipe events
-        socket.on(SOCKET_EVENTS.SWIPE, async (data) => {
-            try {
-                const { targetUserId, direction } = data;
-                const result = await this.handleSwipe(socket.user._id, targetUserId, direction);
-                
-                if (result.isMatch) {
-                    this.notifyMatch(result.match);
-                }
-                
-                socket.emit(SOCKET_EVENTS.SWIPE_RESULT, { success: true, ...result });
-            } catch (error) {
-                console.error('Swipe error:', error);
-                socket.emit(SOCKET_EVENTS.SWIPE_RESULT, { 
-                    success: false, 
-                    error: error.message 
-                });
-            }
+socket.on(SOCKET_EVENTS.SWIPE, async (data) => {
+    try {
+        console.log('Processing swipe:', data);
+        const { targetUserId, direction } = data;
+        
+        if (!targetUserId || !direction) {
+            socket.emit(SOCKET_EVENTS.SWIPE_RESULT, {
+                success: false,
+                error: 'Invalid swipe data'
+            });
+            return;
+        }
+        
+       const result = await this.handleSwipe(socket.user._id, targetUserId, direction);
+        console.log('Swipe processed:', result);
+        
+        if (result.isMatch) {
+            await this.notifyMatch(result.match);
+        }
+        
+        socket.emit(SOCKET_EVENTS.SWIPE_RESULT, {
+            success: true,
+            ...result
         });
+    } catch (error) {
+        console.error('Swipe processing error:', error);
+        socket.emit(SOCKET_EVENTS.SWIPE_RESULT, {
+            success: false,
+            error: error.message || 'Swipe failed'
+        });
+    }
+});
 
         // Handle disconnection
         socket.on(SOCKET_EVENTS.DISCONNECT, () => {
@@ -114,77 +128,98 @@ class SocketService extends BaseSocketService {
         });
     }
 
-    async handleSwipe(userId, targetUserId, direction) {
-        try {
-            if (direction === 'left') {
-                await User.findByIdAndUpdate(userId, {
-                    $addToSet: { rejectedMatches: targetUserId }
-                });
-                return { isMatch: false };
-            }
+async handleSwipe(userId, targetUserId, direction) {
+    try {
+        console.log(`Processing swipe: ${userId} -> ${targetUserId} (${direction})`);
 
-            const existingMatch = await Match.findOne({
-                users: { $all: [userId, targetUserId] }
-            });
-
-            if (existingMatch) {
-                return { isMatch: true, match: existingMatch };
-            }
-
-            const [currentUser, targetUser] = await Promise.all([
-                User.findById(userId).select('travelPreferences personalityType likes'),
-                User.findById(targetUserId).select('travelPreferences personalityType likes')
-            ]);
-
-            if (!currentUser || !targetUser) {
-                throw new Error('User not found');
-            }
-
-            if (!targetUser.likes) {
-                targetUser.likes = [];
-            }
-
-            const newMatch = new Match({
-                users: [userId, targetUserId],
-                status: targetUser.likes.includes(userId) ? 'accepted' : 'pending'
-            });
-
-            try {
-                const matchScore = newMatch.calculateMatchScore(
-                    currentUser.travelPreferences,
-                    targetUser.travelPreferences
-                );
-                newMatch.matchScore = matchScore;
-            } catch (error) {
-                console.error('Error calculating match score:', error);
-                newMatch.matchScore = 50;
-            }
-
-            await newMatch.save();
-
-            if (targetUser.likes.includes(userId)) {
-                return { 
-                    isMatch: true, 
-                    matchScore: newMatch.matchScore,
-                    match: newMatch
-                };
-            }
-
-            await User.findByIdAndUpdate(userId, 
-                { $addToSet: { likes: targetUserId } },
-                { upsert: true, setDefaultsOnInsert: true }
-            );
-
-            return { 
-                isMatch: false, 
-                matchScore: newMatch.matchScore,
-                match: newMatch
-            };
-        } catch (error) {
-            console.error('Error in handleSwipe:', error);
-            throw error;
+        // Validate inputs
+        if (!userId || !targetUserId || !direction) {
+            throw new Error('Missing required swipe parameters');
         }
+
+        if (direction === 'left') {
+            console.log(`Recording rejection: ${userId} rejected ${targetUserId}`);
+            await User.findByIdAndUpdate(userId, {
+                $addToSet: { rejectedMatches: targetUserId }
+            });
+            return { isMatch: false };
+        }
+
+        // Check for existing match first
+        console.log('Checking for existing match...');
+        const existingMatch = await Match.findOne({
+            users: { $all: [userId, targetUserId] }
+        });
+
+        if (existingMatch) {
+            console.log('Found existing match:', existingMatch._id);
+            return { isMatch: true, match: existingMatch };
+        }
+
+        // Fetch both users
+        console.log('Fetching user data...');
+        const [currentUser, targetUser] = await Promise.all([
+            User.findById(userId).select('travelPreferences personalityType likes'),
+            User.findById(targetUserId).select('travelPreferences personalityType likes')
+        ]);
+
+        if (!currentUser || !targetUser) {
+            throw new Error(`User not found: ${!currentUser ? userId : targetUserId}`);
+        }
+
+        // Initialize likes array if it doesn't exist
+        if (!targetUser.likes) targetUser.likes = [];
+        if (!currentUser.likes) currentUser.likes = [];
+
+        // Create new match
+        console.log('Creating new match...');
+        const newMatch = new Match({
+            users: [userId, targetUserId],
+            status: targetUser.likes.includes(userId) ? 'accepted' : 'pending'
+        });
+
+        // Calculate match score
+        try {
+            const matchScore = await newMatch.calculateMatchScore(
+                currentUser.travelPreferences,
+                targetUser.travelPreferences
+            );
+            newMatch.matchScore = matchScore;
+            console.log('Calculated match score:', matchScore);
+        } catch (error) {
+            console.error('Error calculating match score:', error);
+            newMatch.matchScore = 50; // Default score
+        }
+
+        // Save match to database
+        console.log('Saving match to database...');
+        await newMatch.save();
+        console.log('Match saved successfully:', newMatch._id);
+
+        // Update user's likes
+        await User.findByIdAndUpdate(userId, 
+            { $addToSet: { likes: targetUserId } },
+            { upsert: true, new: true }
+        );
+        console.log(`Updated likes for user ${userId}`);
+
+        // Check if it's a mutual match
+        const isMutualMatch = targetUser.likes.includes(userId);
+        console.log('Is mutual match:', isMutualMatch);
+
+        return { 
+            isMatch: isMutualMatch, 
+            matchScore: newMatch.matchScore,
+            match: newMatch
+        };
+
+    } catch (error) {
+        console.error('Error in handleSwipe:', error);
+        // Add stack trace for better debugging
+        console.error(error.stack);
+        throw error;
     }
+}
 
     notifyMatch(match) {
         match.users.forEach(userId => {

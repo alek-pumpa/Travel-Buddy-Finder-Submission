@@ -48,8 +48,8 @@ const SwipeCard = ({ user, isTop, onSwipe, style }) => {
             onDragEnd={(_, info) => {
                 if (Math.abs(info.offset.x) > 100) {
                     const direction = info.offset.x > 0 ? 'right' : 'left';
-                    console.log(`Swiped ${direction} on user:`, user.id);
-                    onSwipe(direction);
+                    console.log(`Swiped ${direction} on user:`, user._id);
+                    onSwipe(direction, user._id);
                 }
                 setSwipeDirection(null);
             }}
@@ -75,31 +75,31 @@ const SwipeCard = ({ user, isTop, onSwipe, style }) => {
                     </div>
                 ) : null}
                 
-                {user.profilePicture && (
-                    <img
-                        src={user.profilePicture.startsWith('/uploads/') 
-                            ? `http://localhost:5001${user.profilePicture}`
-                            : user.profilePicture}
-                        alt={user.name}
-                        className="profile-photo"
-                        onLoad={() => {
-                            console.log('Profile picture loaded:', user.profilePicture);
-                            setImageLoaded(true);
-                        }}
-                        onError={(e) => {
-                            console.error('Failed to load profile picture:', user.profilePicture, e);
-                            setImageError(true);
-                            setImageLoaded(true);
-                        }}
-                    />
-                )}
-                {!user.profilePicture && (
-                    <img
-                        src="/default-avatar.png"
-                        alt="Default avatar"
-                        className="profile-photo"
-                    />
-                )}
+               {user.profilePicture ? (
+    <img
+        src={`${process.env.REACT_APP_API_URL}/public${user.profilePicture}`}
+        alt={user.name}
+        className="profile-photo"
+        onLoad={() => setImageLoaded(true)}
+        onError={(e) => {
+            console.error('Failed to load profile picture:', user.profilePicture);
+            setImageError(true);
+            setImageLoaded(true);
+        }}
+    />
+) : (
+    <img
+        src={`${process.env.REACT_APP_API_URL}/public/default-avatar.png`}
+        alt="Default avatar"
+        className="profile-photo"
+        onLoad={() => setImageLoaded(true)}
+        onError={() => {
+            console.error('Failed to load default avatar');
+            setImageError(true);
+            setImageLoaded(true);
+        }}
+    />
+)}
 
                 <div className="profile-info">
                     <h2 className="text-2xl font-bold mb-2">
