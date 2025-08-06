@@ -2,19 +2,20 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { loginUser, selectError, selectLoading } from '../store/slices/userSlice';
+import toast from 'react-hot-toast';
+import { loginUser, selectAuthLoading, selectAuthError } from '../store/slices/authSlice';
 
 const Login = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [localError, setLocalError] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const isLoading = useSelector(selectLoading);
-    const error = useSelector(selectError);
+    const isLoading = useSelector(selectAuthLoading);
+    const error = useSelector(selectAuthError);
 
-    // Password validation helper
     const validatePassword = (pass) => {
         const requirements = {
             length: pass.length >= 8,
@@ -26,12 +27,10 @@ const Login = () => {
         return requirements;
     };
 
-    // Handle input changes with validation
     const handlePasswordChange = (e) => {
         const newPassword = e.target.value;
         setPassword(newPassword);
         
-        // Clear error if password meets all requirements
         if (localError && localError.includes('password')) {
             const requirements = validatePassword(newPassword);
             if (Object.values(requirements).every(Boolean)) {
@@ -45,24 +44,15 @@ const Login = () => {
         setLocalError('');
 
         try {
-            const resultAction = await dispatch(loginUser({ email, password }));
-            
-            if (loginUser.fulfilled.match(resultAction)) {
-                // Show success message and navigate
-                const successMessage = document.createElement('div');
-                successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50';
-                successMessage.textContent = 'Login successful!';
-                document.body.appendChild(successMessage);
-
-                // Clean up and navigate
-                setTimeout(() => {
-                    successMessage.remove();
-                    navigate('/app/swipe');
-                }, 1500);
+            const resultAction = await dispatch(loginUser({ email, password })).unwrap();
+            if (resultAction) {
+                toast.success('Login successful!');
+                navigate('/app/swipe');
             }
         } catch (err) {
             console.error('Login error:', err);
-            setLocalError(err.response?.data?.message || 'An unexpected error occurred. Please try again.');
+            toast.error(err.message || 'An unexpected error occurred');
+            setLocalError(err.message || 'An unexpected error occurred. Please try again.');
         }
     };
 
@@ -122,10 +112,7 @@ const Login = () => {
                         )}
 
                         <div>
-                            <label
-                                htmlFor="email"
-                                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
+                            <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Email address
                             </label>
                             <div className="mt-1">
@@ -143,17 +130,14 @@ const Login = () => {
                         </div>
 
                         <div>
-                            <label
-                                htmlFor="password"
-                                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                            >
+                            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Password
                             </label>
                             <div className="mt-1 relative">
                                 <input
                                     id="password"
                                     name="password"
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     autoComplete="current-password"
                                     required
                                     value={password}
@@ -163,10 +147,7 @@ const Login = () => {
                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                                     <button
                                         type="button"
-                                        onClick={() => {
-                                            const input = document.getElementById('password');
-                                            input.type = input.type === 'password' ? 'text' : 'password';
-                                        }}
+                                        onClick={() => setShowPassword(!showPassword)}
                                         className="text-gray-400 hover:text-gray-500 focus:outline-none"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -176,9 +157,6 @@ const Login = () => {
                                     </button>
                                 </div>
                             </div>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Must include uppercase, lowercase, number, and special character (!@#$%^&*)
-                            </p>
                         </div>
 
                         <div className="flex items-center justify-between">
@@ -189,19 +167,13 @@ const Login = () => {
                                     type="checkbox"
                                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                 />
-                                <label
-                                    htmlFor="remember-me"
-                                    className="ml-2 block text-sm text-gray-900 dark:text-gray-300"
-                                >
+                                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 dark:text-gray-300">
                                     Remember me
                                 </label>
                             </div>
 
                             <div className="text-sm">
-                                <Link
-                                    to="/forgot-password"
-                                    className="font-medium text-blue-600 hover:text-blue-500"
-                                >
+                                <Link to="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
                                     Forgot your password?
                                 </Link>
                             </div>

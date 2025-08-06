@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { login } from '../slices/userSlice';
+import { loginUser } from '../store/slices/authSlice';
 import SwipeCard from '../components/SwipeCard';
 import { users } from '../services/api';
 
 const UserDashboard = () => {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.user.user);
-  const isAuthenticated = useSelector((state) => state.user.isAuthenticated);
+  //const isAuthenticated = useSelector((state) => state.user.isAuthenticated);
   const [potentialMatches, setPotentialMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,7 +45,7 @@ const UserDashboard = () => {
   // Function to set test user data
   const handleTestLogin = () => {
     console.log('Attempting test login...');
-    dispatch(login({
+    dispatch(loginUser({
       name: 'Test User',
       email: 'test@example.com',
       id: '123'

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useSelector } from 'react-redux';
 import { Navigate, useLocation } from 'react-router-dom';
 import { selectIsAuthenticated } from '../store/slices/userSlice';
@@ -8,13 +8,10 @@ const ProtectedRoute = ({ children }) => {
     const location = useLocation();
     const token = localStorage.getItem('token');
 
-    // If there's no token or user is not authenticated, redirect to login
     if (!token || !isAuthenticated) {
-        // Save the attempted URL for redirecting after login
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // If user is authenticated, render the protected component
     return children;
 };
 

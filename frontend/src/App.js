@@ -6,8 +6,12 @@ import MatchNotification from './components/MatchNotification';
 import UserProfile from './pages/UserProfile';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import store from './store/store';
-import { selectIsAuthenticated, selectLoading } from './store/slices/userSlice';
+import { selectIsAuthenticated } from './store/slices/authSlice'; 
 import { removeMatchNotification } from './store/slices/notificationsSlice';
+import { 
+    selectLoading,
+    selectError 
+} from './store/slices/userSlice';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -27,7 +31,7 @@ import TravelJournal from './components/TravelJournal';
 import ChatList from './components/ChatList';
 import Chat from './components/Chat';
 import GroupChat from './components/GroupChat';
-import TestRedux from './components/TestRedux'; // Importing TestRedux
+import TestRedux from './components/TestRedux';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {

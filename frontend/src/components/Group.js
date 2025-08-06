@@ -10,7 +10,7 @@ import {
     selectGroupLoading,
     selectGroupError 
 } from '../store/slices/groupSlice';
-import { selectUser } from '../store/slices/userSlice';
+import { selectUser } from '../store/slices/authSlice';
 import toast from 'react-hot-toast';
 
 const Group = () => {

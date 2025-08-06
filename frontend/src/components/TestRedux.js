@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { login, logout, updateUserProfile } from '../store/slices/userSlice';
+import { updateProfile } from '../store/slices/userSlice';
+import { loginUser, logout } from '../store/slices/authSlice';
 
 const TestRedux = () => {
   const dispatch = useDispatch();
@@ -8,11 +9,11 @@ const TestRedux = () => {
 
   useEffect(() => {
     // Dispatch login action
-    dispatch(login({ name: 'John Doe', email: 'john@example.com' }));
+    dispatch(loginUser({ name: 'John Doe', email: 'john@example.com' }));
     console.log('User logged in:', userInfo);
 
     // Update user profile
-    dispatch(updateUserProfile({ email: 'john.doe@example.com' }));
+    dispatch(updateProfile({ email: 'john.doe@example.com' }));
     console.log('User profile updated:', userInfo);
 
     // Dispatch logout action

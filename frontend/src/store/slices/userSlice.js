@@ -30,7 +30,8 @@ const userSlice = createSlice({
     initialState: {
         loading: false,
         error: null,
-        profileUpdateSuccess: false
+        profileUpdateSuccess: false,
+        settings: {}
     },
     reducers: {
         clearError: (state) => {
@@ -38,6 +39,9 @@ const userSlice = createSlice({
         },
         resetProfileUpdate: (state) => {
             state.profileUpdateSuccess = false;
+        },
+        setSettings: (state, action) => {
+            state.settings = action.payload;
         }
     },
     extraReducers: (builder) => {
@@ -59,5 +63,17 @@ const userSlice = createSlice({
     }
 });
 
-export const { clearError, resetProfileUpdate } = userSlice.actions;
+// Export all actions
+export const { 
+    clearError, 
+    resetProfileUpdate,
+    setSettings
+} = userSlice.actions;
+
+// Export all selectors
+export const selectLoading = (state) => state.user.loading;
+export const selectError = (state) => state.user.error;
+export const selectProfileUpdateSuccess = (state) => state.user.profileUpdateSuccess;
+export const selectSettings = (state) => state.user.settings;
+
 export default userSlice.reducer;

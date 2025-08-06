@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import socketService from '../services/socketService';
-import { addNotification } from './notificationsSlice';
+import socketService from '../../services/socketService.js';
+import { addNotification } from './notificationsSlice.js';
 
 // Async thunks
 export const fetchMessages = createAsyncThunk(
