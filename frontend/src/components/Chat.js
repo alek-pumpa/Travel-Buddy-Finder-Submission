@@ -13,7 +13,7 @@ import {
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import socketService from '../services/socketService';
-import { selectUser } from '../redux/userSlice';
+import { selectUser } from '../store/slices/userSlice';
 import {
     fetchMessages,
     sendMessage,
@@ -21,7 +21,7 @@ import {
     selectMessages,
     selectTypingStatus,
     markConversationAsRead
-} from '../redux/chatSlice';
+} from '../store/slices/chatSlice';
 
 const Chat = () => {
     const { conversationId } = useParams();

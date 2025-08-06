@@ -8,7 +8,7 @@ import {
     selectUnreadCounts,
     selectOnlineUsers,
     selectChatLoading
-} from '../redux/chatSlice';
+} from '../store/slices/chatSlice';
 
 const ChatList = () => {
     const dispatch = useDispatch();

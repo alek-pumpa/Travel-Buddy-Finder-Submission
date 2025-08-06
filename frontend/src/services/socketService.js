@@ -1,6 +1,6 @@
-import store from '../redux/store';
+import store from '../store/store';
 import { handleNewMessage, setTypingStatus, updateOnlineStatus } from '../redux/chatSlice';
-import { showMatchNotification } from '../redux/notificationsSlice';
+import { showMatchNotification } from '../store/slices/notificationsSlice';
 import BaseSocketService from './base/BaseSocketService';
 import { SOCKET_EVENTS, SOCKET_CONFIG, SOCKET_URLS } from './constants/socketConstants';
 

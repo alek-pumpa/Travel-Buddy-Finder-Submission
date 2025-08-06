@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { loginUser, selectError, selectLoading } from '../redux/userSlice';
+import { loginUser, selectError, selectLoading } from '../store/slices/userSlice';
 
 const Login = () => {
     const [email, setEmail] = useState('');

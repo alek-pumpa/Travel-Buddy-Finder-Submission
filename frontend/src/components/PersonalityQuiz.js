@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { motion } from 'framer-motion';
-import { updateProfile } from '../redux/userSlice';
+import { updateProfile } from '../store/slices/userSlice';
 
 const questions = [
     {

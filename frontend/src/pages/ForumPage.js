@@ -4,7 +4,7 @@ import { ChatBubbleLeftIcon, HeartIcon, BookmarkIcon, ShareIcon } from '@heroico
 import { HeartIcon as HeartIconSolid, BookmarkIcon as BookmarkIconSolid } from '@heroicons/react/24/solid';
 import ForumPost from '../components/ForumPost';
 import { createPost, getPosts } from '../services/forumService';
-import { apiService } from '../services/api'; // Add this import for apiService
+import { apiService } from '../services/api'; 
 import { getToken, getUser } from '../services/authService';
 import { toast } from 'react-hot-toast';
 
@@ -18,7 +18,6 @@ const ForumPage = () => {
         if (token) {
             const user = getUser();
             if (user) {
-                // User is authenticated, fetch posts
                 const fetchPosts = async () => {
                     try {
                         const data = await getPosts();
@@ -89,7 +88,7 @@ const ForumPage = () => {
                             isLiked: newLikeStatus,
                             stats: {
                                 ...post.stats,
-                                likes: response.data.likes // Use the updated likes from the response
+                                likes: response.data.likes 
                             }
                         };
                     }

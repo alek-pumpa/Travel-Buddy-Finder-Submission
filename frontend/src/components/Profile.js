@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { updateProfile, selectUser, selectLoading, selectError } from '../redux/userSlice';
+import { updateProfile, selectUser, selectLoading, selectError } from '../store/slices/userSlice';
 import apiService from '../services/api';
 
 const Profile = () => {

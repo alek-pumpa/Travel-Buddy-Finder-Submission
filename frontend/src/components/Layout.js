@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navigation from './Navigation';
-import { selectIsAuthenticated, selectSettings } from '../redux/userSlice';
+import { selectIsAuthenticated, selectSettings } from '../store/slices/userSlice';
 import socketService from '../services/socketService';
 
 const Layout = () => {

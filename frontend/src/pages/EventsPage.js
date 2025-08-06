@@ -60,7 +60,6 @@ const EventsPage = () => {
         console.log('Event form submitted');
         
         try {
-            // Verify user is authenticated and token is valid
             const user = getUser();
             const token = localStorage.getItem('token');
             

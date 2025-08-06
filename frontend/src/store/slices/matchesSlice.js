@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { users } from '../services/api';
+import { users } from '../../services/api';
 import { addNotification } from './notificationsSlice';
 
 // Async thunks

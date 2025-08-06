@@ -7,7 +7,7 @@ import UserProfile from './pages/UserProfile';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import store from './redux/store';
 import { selectIsAuthenticated, selectLoading } from './redux/userSlice';
-import { removeMatchNotification } from './redux/notificationsSlice';
+import { removeMatchNotification } from './store/slices/notificationsSlice';
 
 // Pages
 import HomePage from './pages/HomePage';

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { login } from '../redux/userSlice';
+import { login } from '../slices/userSlice';
 import SwipeCard from '../components/SwipeCard';
 import { users } from '../services/api';
 
@@ -30,8 +30,7 @@ const UserDashboard = () => {
   }, [user]);
 
   const handleSwipe = async (direction, matchId) => {
-    console.log(`Swiped ${direction} on user ${matchId}`);
-    // Remove the swiped card from the stack
+    console.log(`Swiped ${direction} on user ${matchId}`)
     setPotentialMatches(prev => prev.filter(match => match._id !== matchId));
     
     if (direction === 'right') {

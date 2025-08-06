@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { selectNotifications, selectHasUnread, markAsRead, markAllAsRead } from '../redux/notificationsSlice';
-import { selectTotalUnreadCount } from '../redux/chatSlice';
+import { selectNotifications, selectHasUnread, markAsRead, markAllAsRead } from '../store/slices/notificationsSlice';
+import { selectTotalUnreadCount } from '../store/slices/chatSlice';
 import {
     HomeIcon,
     UserIcon,
@@ -27,7 +27,7 @@ import {
     ChatBubbleOvalLeftEllipsisIcon as ChatBubbleOvalLeftEllipsisIconSolid,
     MapIcon as MapIconSolid,
 } from '@heroicons/react/24/solid';
-import { logout, selectUser } from '../redux/userSlice';
+import { logout, selectUser } from '../store/slices/userSlice';
 
 const Navigation = () => {
     const location = useLocation();
