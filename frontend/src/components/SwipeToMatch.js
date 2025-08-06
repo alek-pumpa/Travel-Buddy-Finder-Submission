@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import toast from 'react-hot-toast';
 import SwipeCard from './SwipeCard';
-import socketService from '../services/socketService';
 import { analytics } from '../services/analytics';
 
 const MAX_RETRIES = 3;
@@ -11,7 +10,7 @@ const PULL_TO_REFRESH_THRESHOLD = 100;
 const SwipeToMatch = () => {
     const [potentialMatches, setPotentialMatches] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [matchQueue, setMatchQueue] = useState([]);
     const [showMatchModal, setShowMatchModal] = useState(false);
     const [matchedUser, setMatchedUser] = useState(null);
@@ -30,92 +29,103 @@ const SwipeToMatch = () => {
         }
 
         try {
-            abortControllerRef.current?.abort();
-            abortControllerRef.current = new AbortController();
-
+            console.log('🚀 Starting fetch potential matches...');
+            
             const response = await fetch(`${process.env.REACT_APP_API_URL}/matches/potential`, {
-                signal: abortControllerRef.current.signal,
                 credentials: 'include',
                 headers: {
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
             });
 
+            console.log('📡 Response status:', response.status);
+
             if (!response.ok) {
-                if (response.status === 404) {
-                    console.warn('No matches found');
-                    return [];
-                }
-                throw new Error(`Server responded with status ${response.status}`);
+                throw new Error(`Failed to fetch matches: ${response.status}`);
             }
 
             const data = await response.json();
+            console.log('✅ Response data:', data);
             
-            // Handle both potential response structures
-            const matches = data.data || data.matches || [];
+            // Your backend returns data in 'data' field
+            const matches = data.data || [];
 
             if (!Array.isArray(matches)) {
-                console.warn('Invalid matches data:', matches);
+                console.warn('⚠️ Invalid matches data:', matches);
                 return [];
             }
 
             const validMatches = matches.filter(match => 
                 match && 
                 typeof match === 'object' && 
-                match._id && 
-                typeof match._id === 'string'
+                match._id
             );
 
-            console.log(`Fetched ${validMatches.length} valid matches`);
+            console.log(`✅ Fetched ${validMatches.length} valid matches`);
             return validMatches;
 
         } catch (error) {
-            console.error('Fetch error:', error);
-            if (error.name === 'AbortError') {
-                console.log('Fetch aborted');
-                return [];
+            console.error('❌ Fetch error:', error);
+            
+            if (retry < MAX_RETRIES - 1) {
+                const delay = RETRY_DELAY * Math.pow(2, retry);
+                console.log(`🔄 Retrying in ${delay}ms... (attempt ${retry + 1}/${MAX_RETRIES})`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return fetchPotentialMatches(retry + 1);
             }
             
-            const delay = RETRY_DELAY * Math.pow(2, retry);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return fetchPotentialMatches(retry + 1);
+            throw error;
         }
     }, []);
-
-    const processMatchQueue = useCallback(async () => {
-        if (matchQueue.length === 0) return;
-
-        const currentMatch = matchQueue[0];
-        try {
-            const result = await currentMatch.promise;
-            if (result && result.isMatch) {
-                setMatchedUser(result.match);
-                setShowMatchModal(true);
-            }
-            setMatchQueue(prev => prev.slice(1));
-        } catch (error) {
-            console.error('Match processing error:', error);
-            toast.error('Failed to process match. Please try again.');
-            setMatchQueue(prev => prev.slice(1));
-        }
-    }, [matchQueue]);
 
     const handleSwipe = useCallback(async (direction, userId) => {
         const potentialMatch = potentialMatches[currentIndex];
         if (!potentialMatch || potentialMatch._id !== userId) return;
 
         const swipeTimestamp = Date.now();
-        const animationId = `${userId}-${direction}-${swipeTimestamp}`;
-        activeAnimationsRef.current.add(animationId);
 
         try {
-            setIsLoading(true);
+            console.log(`Attempting to swipe ${direction} on user:`, userId);
 
-            if (!socketService.connected) {
-                throw new Error('Socket not connected. Please refresh the page.');
+            // Use the correct endpoint and payload format from your backend
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/matches/swipe`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                body: JSON.stringify({
+                    swipedId: userId,
+                    action: direction === 'right' ? 'like' : 'reject'
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Swipe failed: ${response.status}`);
             }
 
+            const result = await response.json();
+            console.log('Swipe result:', result);
+
+            // Handle the response according to your backend structure
+            if (result.status === 'success') {
+                if (result.data.isMutualMatch) {
+                    const matchData = result.data.matchDetails?.matchedUser || potentialMatch;
+                    setMatchedUser(matchData);
+                    setShowMatchModal(true);
+                    toast.success('It\'s a match! 🎉');
+                } else if (direction === 'right') {
+                    toast.success('Like sent! 💙');
+                } else {
+                    toast('Passed 👋', { icon: '👋' });
+                }
+            }
+
+            // Track analytics
             analytics.track('Swipe Action', {
                 direction,
                 userId,
@@ -123,51 +133,16 @@ const SwipeToMatch = () => {
                 swipeSpeed: swipeTimestamp - lastSwipeTimestamp
             });
 
-            if (direction === 'right') {
-                const swipePromise = new Promise(async (resolve, reject) => {
-                    const timeoutId = setTimeout(() => {
-                        reject(new Error('Swipe request timed out'));
-                    }, 30000);
-
-                    try {
-                        const result = await socketService.swipe(userId, direction);
-                        clearTimeout(timeoutId);
-                        resolve(result);
-                    } catch (error) {
-                        clearTimeout(timeoutId);
-                        reject(error);
-                    }
-                });
-
-                setMatchQueue(prev => [...prev, {
-                    user: potentialMatch,
-                    promise: swipePromise,
-                    timestamp: swipeTimestamp
-                }]);
-            }
-
+            // Move to next card
             setCurrentIndex(prev => prev + 1);
             setLastSwipeTimestamp(swipeTimestamp);
 
-            if (direction === 'right') {
-                await processMatchQueue();
-            }
-
         } catch (error) {
             console.error('Swipe error:', error);
-            setCurrentIndex(prev => Math.max(prev - 1, 0));
-            toast.error(error.message || 'Failed to process swipe. Please try again.');
-        } finally {
-            setIsLoading(false);
-            activeAnimationsRef.current.delete(animationId);
-            
-            const cardElement = document.querySelector(`[data-user-id="${userId}"]`);
-            if (cardElement) {
-                cardElement.style.transition = 'none';
-                cardElement.getAnimations().forEach(animation => animation.cancel());
-            }
+            toast.error(`Failed to ${direction === 'right' ? 'like' : 'pass'}. ${error.message}`);
+            // Don't increment index on error so user can try again
         }
-    }, [currentIndex, potentialMatches, lastSwipeTimestamp, processMatchQueue]);
+    }, [currentIndex, potentialMatches, lastSwipeTimestamp]);
 
     const handlePullToRefresh = useCallback(async (event) => {
         const touch = event.touches[0];
@@ -191,33 +166,45 @@ const SwipeToMatch = () => {
     }, [fetchPotentialMatches, refreshing]);
 
     useEffect(() => {
-        const controller = new AbortController();
-        abortControllerRef.current = controller;
+        console.log('🎬 SwipeToMatch useEffect starting...');
+        let timeoutId;
+        let isMounted = true;
 
         const loadInitialMatches = async () => {
-            setIsLoading(true);
-            setError(null);
+            console.log('📋 Loading initial matches...');
+            
+            // Set timeout BEFORE starting the fetch
+            timeoutId = setTimeout(() => {
+                if (isMounted) {
+                    console.log('⏰ Timeout reached, forcing loading to false');
+                    setIsLoading(false);
+                    setError('Request timed out. Please check your connection and try again.');
+                }
+            }, 10000); // 10 second timeout
 
             try {
                 const matches = await fetchPotentialMatches();
-                if (!controller.signal.aborted) {
+                
+                if (isMounted) {
+                    console.log('✅ Setting matches:', matches.length);
+                    clearTimeout(timeoutId);
+                    setPotentialMatches(matches);
+                    setIsLoading(false);
+                    
                     if (matches.length === 0) {
                         toast('No potential matches available', { 
                             icon: 'ℹ️',
                             duration: 3000 
                         });
                     }
-                    setPotentialMatches(matches);
                 }
             } catch (error) {
-                if (!controller.signal.aborted) {
-                    console.error('Failed to load matches:', error);
+                if (isMounted) {
+                    console.error('❌ Failed to load matches:', error);
+                    clearTimeout(timeoutId);
                     setError(error.message);
-                    toast.error('Failed to load matches. Please try again.');
-                }
-            } finally {
-                if (!controller.signal.aborted) {
                     setIsLoading(false);
+                    toast.error('Failed to load matches. Please try again.');
                 }
             }
         };
@@ -225,14 +212,25 @@ const SwipeToMatch = () => {
         loadInitialMatches();
 
         return () => {
-            controller.abort();
+            console.log('🧹 Cleanup: component unmounting');
+            isMounted = false;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
         };
-    }, [fetchPotentialMatches]);
+    }, []);
 
-    if (isLoading && potentialMatches.length === 0) {
+    if (isLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                    <p className="text-gray-600 dark:text-gray-400">Loading potential matches...</p>
+                    <p className="text-sm text-gray-400 mt-2">This may take a moment...</p>
+                </div>
             </div>
         );
     }
@@ -240,12 +238,12 @@ const SwipeToMatch = () => {
     return (
         <div 
             ref={containerRef}
-            className="swipe-container"
+            className="swipe-container min-h-screen bg-gray-50 dark:bg-gray-900 p-4"
             onTouchMove={handlePullToRefresh}
             onTouchEnd={() => pullStartRef.current = 0}
         >
             {refreshing && (
-                <div className="refresh-indicator">
+                <div className="refresh-indicator fixed top-4 left-1/2 transform -translate-x-1/2">
                     <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
                 </div>
             )}
@@ -278,7 +276,7 @@ const SwipeToMatch = () => {
                 </div>
             )}
 
-            <div className="cards-container">
+            <div className="cards-container relative max-w-sm mx-auto pb-20">
                 {potentialMatches.slice(currentIndex, currentIndex + 3).map((user, index) => (
                     <SwipeCard
                         key={user._id}
@@ -288,7 +286,9 @@ const SwipeToMatch = () => {
                         style={{
                             zIndex: potentialMatches.length - index,
                             scale: 1 - index * 0.05,
-                            y: index * 10
+                            y: index * 10,
+                            position: index === 0 ? 'relative' : 'absolute',
+                            top: index === 0 ? 0 : 0
                         }}
                     />
                 ))}
@@ -296,9 +296,18 @@ const SwipeToMatch = () => {
 
             {potentialMatches.length === 0 && !isLoading && (
                 <div className="flex flex-col items-center justify-center h-64">
-                    <h2 className="text-xl font-semibold mb-4">No more potential matches</h2>
+                    <div className="text-6xl mb-4">💔</div>
+                    <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">No more potential matches</h2>
+                    <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">
+                        Check back later for new people to meet!
+                    </p>
                     <button 
-                        onClick={() => fetchPotentialMatches()}
+                        onClick={() => {
+                            setIsLoading(true);
+                            setError(null);
+                            // Trigger a fresh load
+                            window.location.reload();
+                        }}
                         className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >
                         Refresh
@@ -307,8 +316,16 @@ const SwipeToMatch = () => {
             )}
 
             {error && (
-                <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                    {error}
+                <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded max-w-sm">
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm">{error}</span>
+                        <button 
+                            onClick={() => setError(null)}
+                            className="ml-2 text-red-700 hover:text-red-900"
+                        >
+                            ×
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

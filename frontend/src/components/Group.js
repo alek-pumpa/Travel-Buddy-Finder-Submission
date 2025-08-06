@@ -109,11 +109,11 @@ const Group = () => {
                 {group.members.map(member => (
                     <div key={member._id} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800">
                         <img
-                            src={`${process.env.REACT_APP_API_URL}/public${member.profilePicture}` || '/default-avatar.png'}
+                            src={`${process.env.REACT_APP_API_URL}/public${member.profilePicture}` || '/default-avatar.jpg'}
                             alt={member.name}
                             className="w-10 h-10 rounded-full object-cover"
                             onError={(e) => {
-                                e.target.src = '/default-avatar.png';
+                                e.target.src = '/default-avatar.jpg';
                             }}
                         />
                         <span className="text-gray-900 dark:text-white">{member.name}</span>

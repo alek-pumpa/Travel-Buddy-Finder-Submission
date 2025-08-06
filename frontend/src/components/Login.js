@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { loginUser, selectAuthLoading, selectAuthError } from '../store/slices/authSlice';
+import { loginUser, selectAuthLoading, selectAuthError, selectIsAuthenticated } from '../store/slices/authSlice';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -15,44 +15,35 @@ const Login = () => {
     const navigate = useNavigate();
     const isLoading = useSelector(selectAuthLoading);
     const error = useSelector(selectAuthError);
+    const isAuthenticated = useSelector(selectIsAuthenticated);
 
-    const validatePassword = (pass) => {
-        const requirements = {
-            length: pass.length >= 8,
-            number: /\d/.test(pass),
-            upper: /[A-Z]/.test(pass),
-            lower: /[a-z]/.test(pass),
-            special: /[!@#$%^&*]/.test(pass)
-        };
-        return requirements;
-    };
-
-    const handlePasswordChange = (e) => {
-        const newPassword = e.target.value;
-        setPassword(newPassword);
-        
-        if (localError && localError.includes('password')) {
-            const requirements = validatePassword(newPassword);
-            if (Object.values(requirements).every(Boolean)) {
-                setLocalError('');
-            }
+    // Redirect if already authenticated
+    useEffect(() => {
+        if (isAuthenticated) {
+            console.log('User is authenticated, redirecting...');
+            navigate('/app/swipe');
         }
-    };
+    }, [isAuthenticated, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLocalError('');
 
+        console.log('Login form submitted');
+
         try {
             const resultAction = await dispatch(loginUser({ email, password })).unwrap();
-            if (resultAction) {
-                toast.success('Login successful!');
-                navigate('/app/swipe');
-            }
+            
+            console.log('Login successful, result:', resultAction);
+            toast.success('Login successful!');
+            
+            // Force navigation after successful login
+            navigate('/app/swipe', { replace: true });
+            
         } catch (err) {
             console.error('Login error:', err);
-            toast.error(err.message || 'An unexpected error occurred');
-            setLocalError(err.message || 'An unexpected error occurred. Please try again.');
+            toast.error(err || 'An unexpected error occurred');
+            setLocalError(err || 'An unexpected error occurred. Please try again.');
         }
     };
 
@@ -99,15 +90,6 @@ const Login = () => {
                                 className="bg-red-50 dark:bg-red-900/50 border border-red-400 text-red-800 dark:text-red-300 rounded p-3 text-sm"
                             >
                                 {displayError}
-                                {displayError.includes('password') && (
-                                    <ul className="mt-2 list-disc list-inside text-xs">
-                                        <li>At least 8 characters long</li>
-                                        <li>At least one number</li>
-                                        <li>At least one uppercase letter</li>
-                                        <li>At least one lowercase letter</li>
-                                        <li>At least one special character (!@#$%^&*)</li>
-                                    </ul>
-                                )}
                             </motion.div>
                         )}
 
@@ -141,7 +123,7 @@ const Login = () => {
                                     autoComplete="current-password"
                                     required
                                     value={password}
-                                    onChange={handlePasswordChange}
+                                    onChange={(e) => setPassword(e.target.value)}
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">

@@ -4,6 +4,12 @@ export const loginUser = createAsyncThunk(
     'auth/login',
     async (credentials, { rejectWithValue }) => {
         try {
+            console.log('Login attempt with:', { 
+                email: credentials.email,
+                hasPassword: !!credentials.password,
+                url: `${process.env.REACT_APP_API_URL}/auth/login`
+            });
+
             const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
@@ -13,15 +19,34 @@ export const loginUser = createAsyncThunk(
                 body: JSON.stringify(credentials)
             });
 
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Login failed');
+            console.log('Login response status:', response.status);
+
+            // Get response text first to see what we're getting
+            const responseText = await response.text();
+            console.log('Login response text:', responseText);
+
+            // Try to parse as JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('Failed to parse response as JSON:', parseError);
+                throw new Error('Server returned invalid JSON response');
             }
 
-            const data = await response.json();
-            localStorage.setItem('token', data.token);
+            if (!response.ok) {
+                console.error('Login failed with data:', data);
+                throw new Error(data.message || 'Login failed');
+            }
+
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+            }
+
+            console.log('Login successful:', data);
             return data.user;
         } catch (error) {
+            console.error('Login error details:', error);
             return rejectWithValue(error.message);
         }
     }
@@ -31,6 +56,7 @@ export const signupUser = createAsyncThunk(
     'auth/signup',
     async (userData, { rejectWithValue }) => {
         try {
+            // Remove /api prefix
             const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/signup`, {
                 method: 'POST',
                 headers: {
@@ -39,6 +65,12 @@ export const signupUser = createAsyncThunk(
                 credentials: 'include',
                 body: JSON.stringify(userData)
             });
+
+            // Better error handling for HTML responses
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Server returned non-JSON response. Check if backend is running.');
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -49,6 +81,7 @@ export const signupUser = createAsyncThunk(
             localStorage.setItem('token', data.token);
             return data.user;
         } catch (error) {
+            console.error('Signup error details:', error);
             return rejectWithValue(error.message);
         }
     }

@@ -92,8 +92,10 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
 
         // Validate input
         if (!email || !password || !name) {
-            console.log('Missing required fields:', { email: !!email, password: !!password, name: !!name });
-            throw new AppError('Please provide email, password and name', 400);
+            return res.status(400).json({ 
+            status: 'fail', 
+            message: 'Please provide email, password and name' 
+            });
         }
 
          if (!req.file) {
@@ -103,7 +105,10 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
-            throw new AppError('Please provide a valid email address', 400);
+            return res.status(400).json({ 
+            status: 'fail', 
+            message: 'Please provide a valid email address' 
+            });
         }
 
         // Validate password strength
@@ -131,7 +136,10 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
         // Check if user already exists
         const existingUser = await User.findOne({ email });
         if (existingUser) {
-            throw new AppError('Email already registered', 400);
+            return res.status(400).json({ 
+            status: 'fail', 
+            message: 'Email already registered' 
+            });
         }
 
         try {
@@ -324,7 +332,7 @@ router.patch('/update-password', async (req, res, next) => {
 router.post('/upload-profile-picture', protect, upload('profilePicture'), async (req, res, next) => {
     try {
         if (!req.file) {
-            return res.status(400).json({ error: 'No file uploaded' });
+            return res.status(400).json({ status: 'fail', error: 'No file uploaded' });
         }
 
         const fileUrl = `/uploads/${req.file.filename}`;

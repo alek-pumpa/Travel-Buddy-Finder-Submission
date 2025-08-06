@@ -3,8 +3,8 @@ const { ValidationError } = require('mongoose').Error;
 class AppError extends Error {
     constructor(message, statusCode) {
         super(message);
-        this.statusCode = Number(statusCode) || 500; // Ensure it's always a number
-        this.status = `${this.statusCode}`.startsWith('4') ? 'fail' : 'error';
+        this.statusCode = statusCode;
+        this.status = `${statusCode}`.startsWith('4') ? 'fail' : 'error';
         this.isOperational = true;
 
         Error.captureStackTrace(this, this.constructor);

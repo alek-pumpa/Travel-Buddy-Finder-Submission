@@ -100,7 +100,7 @@ const Navigation = () => {
                                     alt={user.name}
                                     className="w-8 h-8 rounded-full object-cover"
                                     onError={(e) => {
-                                        e.target.src = '/default-avatar.png';
+                                        e.target.src = '/default-avatar.jpg';
                                     }}
                                 />
                             )}
@@ -164,7 +164,7 @@ const Navigation = () => {
                                             alt={user.name}
                                             className="w-10 h-10 rounded-full object-cover mr-3"
                                             onError={(e) => {
-                                                e.target.src = '/default-avatar.png';
+                                                e.target.src = '/default-avatar.jpg';
                                             }}
                                         />
                                     )}

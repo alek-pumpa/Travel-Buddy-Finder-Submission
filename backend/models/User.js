@@ -34,7 +34,7 @@ const userSchema = new mongoose.Schema({
     },
     profilePicture: {
         type: String,
-        default: '/default-avatar.png'
+        default: '/default-avatar.jpg'
     },
     role: {
         type: String,

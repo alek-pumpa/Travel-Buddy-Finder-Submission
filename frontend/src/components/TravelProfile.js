@@ -27,7 +27,7 @@ const TravelProfile = () => {
     }, [editedProfile, user]);
 
     const getProfilePicUrl = (profilePicture) => {
-        if (!profilePicture) return `${process.env.REACT_APP_API_URL}/public/default-avatar.png`;
+        if (!profilePicture) return `${process.env.REACT_APP_API_URL}/public/default-avatar.jpg`;
         if (profilePicture.startsWith('/uploads/')) {
             return `${process.env.REACT_APP_API_URL}/public${profilePicture}`;
         }
@@ -135,7 +135,7 @@ const TravelProfile = () => {
                                 className="w-32 h-32 rounded-full border-4 border-white dark:border-gray-800 object-cover"
                                 onError={(e) => {
                                     console.error('Failed to load profile picture, falling back to default');
-                                    e.target.src = `${process.env.REACT_APP_API_URL}/public/default-avatar.png`;
+                                    e.target.src = `${process.env.REACT_APP_API_URL}/public/default-avatar.jpg`;
                                 }}
                             />
                             {isEditing && (

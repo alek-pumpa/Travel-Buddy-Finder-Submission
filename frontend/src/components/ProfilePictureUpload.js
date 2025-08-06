@@ -62,7 +62,7 @@ const ProfilePictureUpload = () => {
                     <img src={preview} alt="Preview" className="preview-image" />
                 ) : (
                     <img 
-                        src={user?.profilePicture || '/default-avatar.png'} 
+                        src={user?.profilePicture || '/default-avatar.jpg'} 
                         alt="Current Profile" 
                         className="current-profile-image" 
                     />

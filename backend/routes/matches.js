@@ -5,6 +5,7 @@ const { protect } = require('../middleware/auth');
 const User = require('../models/User');
 const MatchService = require('../services/matchService');
 const Swipe = require('../models/Swipe');
+const Match = require('../models/Match');
 
 // Rate limiting configuration
 const matchesLimiter = rateLimit({
@@ -196,6 +197,20 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
             },
             active: true
         };
+
+        // Get users that current user has already swiped on (both like and reject)
+        const swipedUsers = await Swipe.find({ 
+            swiper_id: currentUser._id 
+        }).select('swiped_id').lean();
+
+        const swipedUserIds = swipedUsers.map(swipe => swipe.swiped_id);
+
+        // Add swiped users to the exclusion list
+        if (swipedUserIds.length > 0) {
+            filterConditions._id.$nin.push(...swipedUserIds);
+        }
+
+        console.log(`Excluding ${swipedUserIds.length} previously swiped users`);
 
         // Add blocked users who have blocked the current user
         const blockedByUsers = await User.find(

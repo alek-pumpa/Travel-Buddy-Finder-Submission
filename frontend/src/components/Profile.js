@@ -99,7 +99,7 @@ const Profile = () => {
                     <div className="relative mb-4">
                         <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-gray-200">
                             <img 
-                                src={imagePreview || (user?.profilePicture ? `${process.env.REACT_APP_API_URL}${user.profilePicture}` : `${process.env.REACT_APP_API_URL}backend/public/default-avatar.png`)}
+                                src={imagePreview || (user?.profilePicture ? `${process.env.REACT_APP_API_URL}${user.profilePicture}` : `${process.env.REACT_APP_API_URL}backend/public/default-avatar.jpg`)}
                                 alt="Profile" 
                                 className="w-full h-full object-cover"
                             />

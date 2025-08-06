@@ -9,6 +9,9 @@ const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
+// Import the proper error handler
+const { errorHandler } = require('./middleware/errorHandler');
+
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -151,13 +154,16 @@ const io = socketIo(server, {
 // Socket.io connection handling
 socketService.initialize(io);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    res.status(err.status || 500).json({
-        status: 'error',
-        message: err.message || 'Internal Server Error'
+// Handle 404 for API routes
+app.all('/api/*', (req, res) => {
+    res.status(404).json({
+        status: 'fail',
+        message: `Can't find ${req.originalUrl} on this server!`
     });
 });
+
+// Use the proper error handler middleware (ONLY this one)
+app.use(errorHandler);
 
 // Start the server
 const PORT = process.env.PORT || 5001;

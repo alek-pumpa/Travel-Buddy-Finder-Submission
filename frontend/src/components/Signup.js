@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { signupUser } from '../store/slices/authSlice';
-import { selectError, selectLoading, clearError } from '../store/slices/userSlice';
+import { signupUser, selectAuthLoading, selectAuthError, clearError } from '../store/slices/authSlice';
 
 const Signup = () => {
     const [formData, setFormData] = useState({
@@ -14,8 +13,8 @@ const Signup = () => {
     });
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const reduxError = useSelector(selectError);
-    const isLoading = useSelector(selectLoading);
+    const reduxError = useSelector(selectAuthError);
+    const isLoading = useSelector(selectAuthLoading);
 
     useEffect(() => {
         dispatch(clearError());
