@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
     PaperAirplaneIcon,
     PhotoIcon,
-    FaceSmileIcon, // Updated icon
+    FaceSmileIcon,
     InformationCircleIcon,
     CheckCircleIcon,
     ExclamationCircleIcon,

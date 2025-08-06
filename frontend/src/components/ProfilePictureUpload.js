@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './ProfilePictureUpload.css';
 import { useDispatch, useSelector } from 'react-redux';
 import { uploadProfilePicture } from '../services/userService';
-import { updateUser } from '../redux/slices/userSlice';
+import { updateUser } from '../store/slices/userSlice';
 import { toast } from 'react-toastify';
 
 const ProfilePictureUpload = () => {

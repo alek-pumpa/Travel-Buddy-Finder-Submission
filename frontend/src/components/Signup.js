@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { signupUser, selectError, selectLoading, clearError } from '../redux/userSlice';
+import { signupUser, selectError, selectLoading, clearError } from '../store/slices/userSlice';
 
 const Signup = () => {
     const [formData, setFormData] = useState({

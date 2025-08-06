@@ -1,5 +1,5 @@
 import { createStore } from 'redux';
-import notificationsReducer, { markAsRead, markAllAsRead, selectNotifications, addNotification } from '../redux/notificationsSlice';
+import notificationsReducer, { markAsRead, markAllAsRead, selectNotifications, addNotification } from '../store/slices/notificationsSlice';
 
 describe('notificationsSlice', () => {
   let store;

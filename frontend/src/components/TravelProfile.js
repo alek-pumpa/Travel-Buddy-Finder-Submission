@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { selectUser, updateProfile } from '../redux/userSlice';
+import { selectUser, updateProfile } from '../store/slices/userSlice';
 import toast from 'react-hot-toast';
 import {
     PencilIcon,

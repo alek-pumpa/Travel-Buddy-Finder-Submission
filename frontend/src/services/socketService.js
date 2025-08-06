@@ -1,5 +1,5 @@
 import store from '../store/store';
-import { handleNewMessage, setTypingStatus, updateOnlineStatus } from '../redux/chatSlice';
+import { handleNewMessage, setTypingStatus, updateOnlineStatus } from '../store/slices/chatSlice';
 import { showMatchNotification } from '../store/slices/notificationsSlice';
 import BaseSocketService from './base/BaseSocketService';
 import { SOCKET_EVENTS, SOCKET_CONFIG, SOCKET_URLS } from './constants/socketConstants';

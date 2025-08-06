@@ -5,8 +5,8 @@ import { AuthProvider } from './context/AuthContext'; // Importing AuthProvider
 import MatchNotification from './components/MatchNotification';
 import UserProfile from './pages/UserProfile';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import store from './redux/store';
-import { selectIsAuthenticated, selectLoading } from './redux/userSlice';
+import store from './store/store';
+import { selectIsAuthenticated, selectLoading } from './store/slices/userSlice';
 import { removeMatchNotification } from './store/slices/notificationsSlice';
 
 // Pages

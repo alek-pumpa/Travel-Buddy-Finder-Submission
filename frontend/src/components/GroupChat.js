@@ -13,7 +13,7 @@ import {
     XMarkIcon
 } from '@heroicons/react/24/outline';
 import socketService from '../services/socketService';
-import { selectUser } from '../redux/userSlice';
+import { selectUser } from '../store/slices/userSlice';
 
 const GroupChat = () => {
     const { groupId } = useParams();
