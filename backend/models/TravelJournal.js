@@ -156,7 +156,7 @@ const travelJournalSchema = new mongoose.Schema({
 
 // Indexes
 travelJournalSchema.index({ user: 1, createdAt: -1 });
-travelJournalSchema.index({ location: '2dsphere' });
+//travelJournalSchema.index({ location: '2dsphere' });
 travelJournalSchema.index({ 'dates.start': 1, 'dates.end': 1 });
 travelJournalSchema.index({ tags: 1 });
 

@@ -1,6 +1,5 @@
 const Post = require('../models/Post');
 
-// Create a new post
 exports.createPost = async (req, res) => {
     try {
         console.log('Request body:', req.body);

@@ -119,18 +119,21 @@ app.use(cookieParser(process.env.JWT_SECRET)); // Use JWT_SECRET for signing coo
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const messageRoutes = require('./routes/messages');
 const userRoutes = require('./routes/users');
 const matchRoutes = require('./routes/matches');
 const groupRoutes = require('./routes/groups');
 const journalRoutes = require('./routes/journals');
 const analyticsRoutes = require('./routes/analytics');
 const forumRoutes = require('./routes/forum');
+const marketplaceRoutes = require('./routes/marketplace');
 
 // Handle OPTIONS requests for all routes
 app.options('*', cors(corsOptions));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/groups', groupRoutes);
@@ -139,6 +142,9 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/forum', forumRoutes);
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/chat', require('./routes/chat'));
+app.use('/api/marketplace', marketplaceRoutes);
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Handle OPTIONS requests specifically for forum routes
 app.options('/api/forum/posts', cors(corsOptions));

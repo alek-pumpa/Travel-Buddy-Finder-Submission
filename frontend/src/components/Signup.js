@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { signupUser, selectAuthLoading, selectAuthError, clearError } from '../store/slices/authSlice';
+import toast from 'react-hot-toast';
+import { signupUser, selectAuthLoading, selectAuthError, clearError, loginSuccess } from '../store/slices/authSlice';
 
 const Signup = () => {
     const [formData, setFormData] = useState({
@@ -11,6 +12,11 @@ const Signup = () => {
         password: '',
         confirmPassword: '',
     });
+    const [profilePicture, setProfilePicture] = useState(null);
+    const [profilePicturePreview, setProfilePicturePreview] = useState(null);
+    const [uploadError, setUploadError] = useState('');
+    const [validationError, setValidationError] = useState('');
+    
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const reduxError = useSelector(selectAuthError);
@@ -30,12 +36,56 @@ const Signup = () => {
         });
     };
 
-    const [validationError, setValidationError] = useState('');
+    const handleProfilePictureChange = (e) => {
+        const file = e.target.files[0];
+        setUploadError('');
+
+        if (!file) {
+            setProfilePicture(null);
+            setProfilePicturePreview(null);
+            return;
+        }
+
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            setUploadError('Please select a valid image file (JPEG, PNG, or WebP)');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        const maxSize = 5 * 1024 * 1024; // 5MB in bytes
+        if (file.size > maxSize) {
+            setUploadError('Image must be smaller than 5MB');
+            return;
+        }
+
+        setProfilePicture(file);
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            setProfilePicturePreview(e.target.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const removeProfilePicture = () => {
+        setProfilePicture(null);
+        setProfilePicturePreview(null);
+        setUploadError('');
+        // Reset file input
+        const fileInput = document.getElementById('profilePicture');
+        if (fileInput) {
+            fileInput.value = '';
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setValidationError('');
-        // Remove sensitive data logging
+        setUploadError('');
+        
         console.log('Attempting signup...');
 
         // Basic field validation
@@ -55,18 +105,6 @@ const Signup = () => {
         if (formData.password.length < 8) {
             passwordErrors.push('Password must be at least 8 characters long');
         }
-        if (!/\d/.test(formData.password)) {
-            passwordErrors.push('Password must contain at least one number');
-        }
-        if (!/[A-Z]/.test(formData.password)) {
-            passwordErrors.push('Password must contain at least one uppercase letter');
-        }
-        if (!/[a-z]/.test(formData.password)) {
-            passwordErrors.push('Password must contain at least one lowercase letter');
-        }
-        if (!/[!@#$%^&*]/.test(formData.password)) {
-            passwordErrors.push('Password must contain at least one special character (!@#$%^&*)');
-        }
 
         if (passwordErrors.length > 0) {
             setValidationError(passwordErrors.join('\n'));
@@ -80,36 +118,64 @@ const Signup = () => {
             return;
         }
 
-        try {
-            // Dispatch signup action
-            console.log('Dispatching signupUser action...');
-            const result = await dispatch(signupUser({
-                name: formData.name,
-                email: formData.email,
-                password: formData.password,
-                passwordConfirm: formData.confirmPassword
-            })).unwrap();
-            console.log('Signup result:', result);
+        // Profile picture validation
+        if (!profilePicture) {
+            setValidationError('Profile picture is required');
+            return;
+        }
 
-            if (!result) {
-                throw new Error('No response from server');
+        try {
+            // Create FormData for file upload
+            const signupFormData = new FormData();
+            signupFormData.append('name', formData.name.trim());
+            signupFormData.append('email', formData.email.toLowerCase().trim());
+            signupFormData.append('password', formData.password);
+            signupFormData.append('passwordConfirm', formData.confirmPassword);
+            
+            if (profilePicture) {
+                signupFormData.append('photo', profilePicture);
             }
 
-            // Show success message and navigate
-            const successMessage = document.createElement('div');
-            successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded shadow-lg z-50';
-            successMessage.textContent = 'Account created successfully!';
-            document.body.appendChild(successMessage);
+            // Add default travel preferences
+            const defaultTravelPreferences = {
+                budget: 'moderate',
+                pace: 'moderate', 
+                accommodationPreference: 'flexible',
+                interests: [],
+                destinations: []
+            };
+            signupFormData.append('travelPreferences', JSON.stringify(defaultTravelPreferences));
 
-            // Clean up and navigate
+            // Add empty languages array
+            signupFormData.append('languages', JSON.stringify([]));
+
+            console.log('Dispatching signupUser action...');
+            const result = await dispatch(signupUser(signupFormData)).unwrap();
+            console.log('Signup result:', result);
+
+            if (!result || !result.user) {
+                throw new Error('No user data received from server');
+            }
+
+            // Update Redux state manually if needed
+            dispatch(loginSuccess({
+                user: result.user,
+                token: result.token
+            }));
+
+            // Show success message
+            toast.success('Account created successfully! Welcome to Travel Buddy!');
+
+            // Navigate to quiz after successful signup
             setTimeout(() => {
-                successMessage.remove();
                 navigate('/app/quiz');
-            }, 2000);
+            }, 1000);
 
         } catch (err) {
             console.error('Signup error:', err);
-            setValidationError(err.message || 'Failed to create account. Please try again.');
+            const errorMessage = err.message || 'Failed to create account. Please try again.';
+            setValidationError(errorMessage);
+            toast.error(errorMessage);
         }
     };
 
@@ -146,29 +212,122 @@ const Signup = () => {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="bg-white dark:bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10">
-                    <form className="space-y-6" onSubmit={handleSubmit}>
+                    <form className="space-y-6" onSubmit={handleSubmit} encType="multipart/form-data">
                         {(validationError || reduxError) && (
-                            <div className="bg-red-50 dark:bg-red-900/50 border border-red-400 text-red-800 dark:text-red-300 rounded p-3 text-sm mb-4">
+                            <motion.div
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="bg-red-50 dark:bg-red-900/50 border border-red-400 text-red-800 dark:text-red-300 rounded-lg p-4 text-sm"
+                            >
                                 {validationError ? (
-                                    <ul className="list-disc pl-4 space-y-1">
+                                    <div>
                                         {validationError.split('\n').map((error, index) => (
-                                            <li key={index}>{error}</li>
+                                            <div key={index} className="flex items-center">
+                                                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                {error}
+                                            </div>
                                         ))}
-                                    </ul>
+                                    </div>
                                 ) : (
-                                    reduxError
+                                    <div className="flex items-center">
+                                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        {reduxError}
+                                    </div>
                                 )}
-                            </div>
+                            </motion.div>
                         )}
 
-                        
+                        {/* Profile Picture Upload */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.1 }}
+                        >
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                Profile Picture <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex flex-col items-center space-y-4">
+                                {/* Preview Area */}
+                                <div className="relative">
+                                    {profilePicturePreview ? (
+                                        <div className="relative group">
+                                            <img
+                                                src={profilePicturePreview}
+                                                alt="Profile preview"
+                                                className="w-24 h-24 rounded-full object-cover border-4 border-blue-200 dark:border-blue-600 shadow-lg"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={removeProfilePicture}
+                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm hover:bg-red-600 transition-colors shadow-lg opacity-0 group-hover:opacity-100"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-800 dark:to-blue-900 flex items-center justify-center border-4 border-dashed border-blue-300 dark:border-blue-600">
+                                            <svg className="w-8 h-8 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                        </div>
+                                    )}
+                                </div>
 
-                        <div>
+                                {/* Upload Button */}
+                                <div className="flex flex-col items-center">
+                                    <label
+                                        htmlFor="profilePicture"
+                                        className="cursor-pointer bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors border border-blue-200 dark:border-blue-700 inline-flex items-center"
+                                    >
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                        </svg>
+                                        {profilePicturePreview ? 'Change Photo' : 'Upload Photo'}
+                                    </label>
+                                    <input
+                                        id="profilePicture"
+                                        name="profilePicture"
+                                        type="file"
+                                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                                        onChange={handleProfilePictureChange}
+                                        className="hidden"
+                                        required
+                                    />
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+                                        Max 5MB • JPEG, PNG, WebP formats only
+                                    </p>
+                                </div>
+
+                                {uploadError && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        className="text-red-600 dark:text-red-400 text-sm flex items-center"
+                                    >
+                                        <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                        </svg>
+                                        {uploadError}
+                                    </motion.div>
+                                )}
+                            </div>
+                        </motion.div>
+
+                        {/* Name Field */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.2 }}
+                        >
                             <label
                                 htmlFor="name"
                                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
                             >
-                                Full name
+                                Full name <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                                 <input
@@ -183,14 +342,19 @@ const Signup = () => {
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
 
-                        <div>
+                        {/* Email Field */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                        >
                             <label
                                 htmlFor="email"
                                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
                             >
-                                Email address
+                                Email address <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                                 <input
@@ -205,14 +369,19 @@ const Signup = () => {
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
 
-                        <div>
+                        {/* Password Field */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                        >
                             <label
                                 htmlFor="password"
                                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
                             >
-                                Password
+                                Password <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                                 <input
@@ -227,14 +396,19 @@ const Signup = () => {
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
 
-                        <div>
+                        {/* Confirm Password Field */}
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.5 }}
+                        >
                             <label
                                 htmlFor="confirmPassword"
                                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
                             >
-                                Confirm password
+                                Confirm password <span className="text-red-500">*</span>
                             </label>
                             <div className="mt-1">
                                 <input
@@ -249,26 +423,20 @@ const Signup = () => {
                                     className="appearance-none block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm dark:bg-gray-700 dark:text-white"
                                 />
                             </div>
-                        </div>
+                        </motion.div>
 
-                        {/* Password requirements hint */}
-                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                            <p className="font-medium mb-1">Password must contain:</p>
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li>At least 8 characters</li>
-                                <li>At least one number</li>
-                                <li>At least one uppercase letter</li>
-                                <li>At least one lowercase letter</li>
-                                <li>At least one special character (!@#$%^&*)</li>
-                            </ul>
-                        </div>
-
-                        <div className="mt-6">
+                        {/* Submit Button */}
+                        <motion.div 
+                            className="mt-6"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.6 }}
+                        >
                             <button
                                 type="submit"
                                 disabled={isLoading}
                                 className={`w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ${
-                                    isLoading ? 'opacity-75 cursor-not-allowed' : ''
+                                    isLoading ? 'opacity-75 cursor-not-allowed' : 'transform hover:scale-105'
                                 }`}
                             >
                                 {isLoading ? (
@@ -280,13 +448,24 @@ const Signup = () => {
                                         Creating account...
                                     </>
                                 ) : (
-                                    'Create account'
+                                    <>
+                                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                                        </svg>
+                                        Create account
+                                    </>
                                 )}
                             </button>
-                        </div>
+                        </motion.div>
                     </form>
 
-                    <div className="mt-6">
+                    {/* Social Login Options */}
+                    <motion.div 
+                        className="mt-6"
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.7 }}
+                    >
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">
                                 <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
@@ -299,25 +478,27 @@ const Signup = () => {
                         </div>
 
                         <div className="mt-6 grid grid-cols-2 gap-3">
-                            <div>
-                                <button className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <span className="sr-only">Sign up with Google</span>
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
-                                    </svg>
-                                </button>
-                            </div>
+                            <button 
+                                type="button"
+                                disabled={isLoading}
+                                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+                                </svg>
+                            </button>
 
-                            <div>
-                                <button className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <span className="sr-only">Sign up with Facebook</span>
-                                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M23.998 12c0-6.628-5.372-12-11.999-12C5.372 0 0 5.372 0 12c0 5.988 4.388 10.952 10.124 11.852v-8.384H7.078v-3.469h3.046V9.356c0-3.008 1.792-4.669 4.532-4.669 1.313 0 2.686.234 2.686.234v2.953H15.83c-1.49 0-1.955.925-1.955 1.874V12h3.328l-.532 3.469h-2.796v8.384c5.736-.9 10.124-5.864 10.124-11.853z" />
-                                    </svg>
-                                </button>
-                            </div>
+                            <button 
+                                type="button"
+                                disabled={isLoading}
+                                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-sm font-medium text-gray-500 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M23.998 12c0-6.628-5.372-12-11.999-12C5.372 0 0 5.372 0 12c0 5.988 4.388 10.952 10.124 11.852v-8.384H7.078v-3.469h3.046V9.356c0-3.008 1.792-4.669 4.532-4.669 1.313 0 2.686.234 2.686.234v2.953H15.83c-1.49 0-1.955.925-1.955 1.874V12h3.328l-.532 3.469h-2.796v8.384c5.736-.9 10.124-5.864 10.124-11.853z" />
+                                </svg>
+                            </button>
                         </div>
-                    </div>
+                    </motion.div>
                 </div>
             </div>
         </div>

@@ -6,6 +6,7 @@ const User = require('../models/User');
 const MatchService = require('../services/matchService');
 const Swipe = require('../models/Swipe');
 const Match = require('../models/Match');
+const Conversation = require('../models/Conversation');
 
 // Rate limiting configuration
 const matchesLimiter = rateLimit({
@@ -265,7 +266,7 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
                 $geoWithin: {
                     $centerSphere: [
                         currentUser.location.coordinates,
-                        matchRadius / 6371 // Convert km to radians
+                        matchRadius / 6371 
                     ]
                 }
             };
@@ -554,6 +555,144 @@ router.post('/:userId', protect, swipeLimiter, async (req, res) => {
             status: 'error',
             message: 'Error creating match',
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+});
+
+// Add this route to backend/routes/matches.js
+router.get('/my-matches', protect, async (req, res) => {
+    try {
+        console.log('Fetching matches for user:', req.user._id);
+        
+        // Find all matches where the current user is involved
+        const matches = await Match.find({
+            users: req.user._id,
+            status: 'pending' // or whatever status indicates an active match
+        })
+        .populate({
+            path: 'users',
+            select: 'name age bio profilePicture location travelPreferences languages travelStyle',
+            match: { _id: { $ne: req.user._id } } // Exclude current user
+        })
+        .sort({ matchedOn: -1 }) // Most recent first
+        .lean();
+
+        console.log(`Found ${matches.length} matches`);
+
+        // Transform the data to include the other user info
+        const transformedMatches = matches.map(match => ({
+            _id: match._id,
+            matchedOn: match.matchedOn,
+            matchScore: match.matchScore,
+            status: match.status,
+            // Get the other user (not the current user)
+            otherUser: match.users.find(user => user._id.toString() !== req.user._id.toString()),
+            // Include original match data if needed
+            originalMatch: match
+        })).filter(match => match.otherUser); // Only include matches where we found the other user
+
+        console.log('Transformed matches:', transformedMatches.length);
+
+        res.status(200).json({
+            status: 'success',
+            results: transformedMatches.length,
+            data: transformedMatches
+        });
+
+    } catch (error) {
+        console.error('Error fetching user matches:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch matches',
+            error: error.message
+        });
+    }
+});
+
+router.get('/conversations', protect, async (req, res) => {
+    try {
+        const conversations = await Conversation.find({
+            participants: req.user._id
+        })
+        .populate({
+            path: 'participants',
+            select: 'name profilePicture',
+            match: { _id: { $ne: req.user._id } }
+        })
+        .populate({
+            path: 'lastMessage',
+            select: 'content sender timestamp'
+        })
+        .sort({ updatedAt: -1 });
+
+        res.status(200).json({
+            status: 'success',
+            data: conversations
+        });
+    } catch (error) {
+        console.error('Error fetching conversations:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch conversations'
+        });
+    }
+});
+
+// Create new conversation
+router.post('/conversations', protect, async (req, res) => {
+    try {
+        const { participantId, initialMessage } = req.body;
+
+        // Check if conversation already exists
+        const existingConversation = await Conversation.findOne({
+            participants: { $all: [req.user._id, participantId] }
+        });
+
+        if (existingConversation) {
+            return res.status(200).json({
+                status: 'success',
+                data: existingConversation
+            });
+        }
+
+        // Create new conversation
+        const conversation = await Conversation.create({
+            participants: [req.user._id, participantId]
+        });
+
+        // Send initial message if provided
+        if (initialMessage) {
+            const message = await Message.create({
+                conversation: conversation._id,
+                sender: req.user._id,
+                content: initialMessage
+            });
+
+            conversation.lastMessage = message._id;
+            await conversation.save();
+        }
+
+        await conversation.populate([
+            {
+                path: 'participants',
+                select: 'name profilePicture',
+                match: { _id: { $ne: req.user._id } }
+            },
+            {
+                path: 'lastMessage',
+                select: 'content sender timestamp'
+            }
+        ]);
+
+        res.status(201).json({
+            status: 'success',
+            data: conversation
+        });
+    } catch (error) {
+        console.error('Error creating conversation:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to create conversation'
         });
     }
 });

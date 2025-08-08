@@ -6,9 +6,8 @@ import { Toaster } from 'react-hot-toast';
 import store from './store/store';
 import { selectIsAuthenticated, setUser } from './store/slices/authSlice'; 
 import { removeMatchNotification } from './store/slices/notificationsSlice';
-import { 
-    selectLoading
-} from './store/slices/userSlice';
+import {  selectLoading } from './store/slices/userSlice';
+import { loginSuccess } from './store/slices/authSlice';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -17,7 +16,7 @@ import EventsPage from './pages/EventsPage';
 import ForumPage from './pages/ForumPage';
 import ItineraryPage from './pages/ItineraryPage';
 import UserDashboard from './pages/UserDashboard';
-import UserProfile from './pages/UserProfile';
+import UserProfilePage from './pages/UserProfile';
 
 // Components
 import Layout from './components/Layout';
@@ -27,11 +26,13 @@ import PersonalityQuiz from './components/PersonalityQuiz';
 import SwipeToMatch from './components/SwipeToMatch';
 import TravelProfile from './components/TravelProfile';
 import TravelJournal from './components/TravelJournal';
-import ChatList from './components/ChatList';
-import Chat from './components/Chat';
 import GroupChat from './components/GroupChat';
 import MatchNotification from './components/MatchNotification';
 import Matches from './components/Matches';
+import ViewUserProfile from './components/UserProfile';
+import Messages from './components/Messages';
+import MessageThread from './components/MessageThread';
+
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -88,30 +89,61 @@ const AuthPersistence = ({ children }) => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
 
     useEffect(() => {
-        // Check for existing token and verify with backend
+        // Restore auth state on app load
         const token = localStorage.getItem('token');
-        if (token && !isAuthenticated) {
-            // Verify token with backend
-            fetch(`${process.env.REACT_APP_API_URL}/auth/me`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.status === 'success' && data.user) {
-                    dispatch(setUser(data.user));
-                } else {
+        const user = localStorage.getItem('user');
+        
+        if (token && user && !isAuthenticated) {
+            try {
+                const parsedUser = JSON.parse(user);
+                console.log('Restoring auth state for user:', parsedUser.email);
+                
+                // Restore from localStorage first
+                dispatch(loginSuccess({
+                    user: parsedUser,
+                    token: token
+                }));
+
+                // Then verify token is still valid with backend
+                fetch(`${process.env.REACT_APP_API_URL}/auth/check-auth`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Token verification failed');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success' && data.data.user) {
+                        // Token is valid, update with fresh user data
+                        dispatch(loginSuccess({
+                            user: data.data.user,
+                            token: token
+                        }));
+                        localStorage.setItem('user', JSON.stringify(data.data.user));
+                    } else {
+                        throw new Error('Invalid response from server');
+                    }
+                })
+                .catch(error => {
+                    console.error('Token verification failed:', error);
+                    // Clear invalid auth data
                     localStorage.removeItem('token');
-                }
-            })
-            .catch(error => {
-                console.error('Token verification failed:', error);
+                    localStorage.removeItem('user');
+                    dispatch(setUser(null));
+                });
+            } catch (error) {
+                console.error('Error restoring auth state:', error);
                 localStorage.removeItem('token');
-            });
+                localStorage.removeItem('user');
+                dispatch(setUser(null));
+            }
         }
     }, [dispatch, isAuthenticated]);
 
@@ -175,8 +207,7 @@ const AppContent = () => {
                             <Route index element={<Navigate to="swipe" replace />} />
                             <Route path="swipe" element={<SwipeToMatch />} />
                             <Route path="matches" element={<Matches />} />
-                            <Route path="chat" element={<ChatList />} />
-                            <Route path="chat/:conversationId" element={<Chat />} />
+                            <Route path="chat" element={<Navigate to="/app/messages" replace />} />
                             <Route path="groups" element={<GroupChat />} />
                             <Route path="marketplace" element={<MarketplacePage />} />
                             <Route path="events" element={<EventsPage />} />
@@ -186,7 +217,10 @@ const AppContent = () => {
                             <Route path="journal" element={<TravelJournal />} />
                             <Route path="itinerary" element={<ItineraryPage />} />
                             <Route path="dashboard" element={<UserDashboard />} />
-                            <Route path="user-profile" element={<UserProfile />} />
+                            <Route path="user-profile" element={<UserProfilePage />} />
+                            <Route path="profile/:userId" element={<ViewUserProfile />} />
+                            <Route path="messages" element={<Messages />} />
+                            <Route path="messages/:conversationId" element={<MessageThread />} />
                         </Route>
                         
                         {/* 404 page */}

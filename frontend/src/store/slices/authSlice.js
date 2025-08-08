@@ -41,10 +41,14 @@ export const loginUser = createAsyncThunk(
 
             if (data.token) {
                 localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.data.user));
             }
 
             console.log('Login successful:', data);
-            return data.user;
+            return {
+                user: data.data.user,
+                token: data.token
+            };
         } catch (error) {
             console.error('Login error details:', error);
             return rejectWithValue(error.message);
@@ -54,44 +58,59 @@ export const loginUser = createAsyncThunk(
 
 export const signupUser = createAsyncThunk(
     'auth/signup',
-    async (userData, { rejectWithValue }) => {
+    async (formData, { rejectWithValue }) => {
         try {
-            // Remove /api prefix
+            console.log('Making signup request...');
+            
             const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/signup`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 credentials: 'include',
-                body: JSON.stringify(userData)
+                body: formData // Send FormData directly
             });
 
-            // Better error handling for HTML responses
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-                throw new Error('Server returned non-JSON response. Check if backend is running.');
-            }
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Signup failed');
-            }
+            console.log('Signup response status:', response.status);
 
             const data = await response.json();
-            localStorage.setItem('token', data.token);
-            return data.user;
+            console.log('Signup response:', data);
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Signup failed');
+            }
+
+            if (data.token) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.data.user));
+            }
+
+            return {
+                user: data.data.user,
+                token: data.token
+            };
         } catch (error) {
-            console.error('Signup error details:', error);
+            console.error('Signup error:', error);
             return rejectWithValue(error.message);
         }
     }
 );
 
 const initialState = {
-    user: null,
-    isAuthenticated: false,
+    user: (() => {
+        try {
+            const user = localStorage.getItem('user');
+            return user ? JSON.parse(user) : null;
+        } catch {
+            localStorage.removeItem('user');
+            return null;
+        }
+    })(),
+    isAuthenticated: (() => {
+        const token = localStorage.getItem('token');
+        const user = localStorage.getItem('user');
+        return !!(token && user);
+    })(),
     loading: false,
-    error: null
+    error: null,
+    token: localStorage.getItem('token') || null
 };
 
 const authSlice = createSlice({
@@ -111,9 +130,18 @@ const authSlice = createSlice({
         logout: (state) => {
             state.user = null;
             state.isAuthenticated = false;
+            state.token = null;
             localStorage.removeItem('token');
+            localStorage.removeItem('user');
         },
         clearError: (state) => {
+            state.error = null;
+        },
+        loginSuccess: (state, action) => {
+            state.user = action.payload.user;
+            state.token = action.payload.token;
+            state.isAuthenticated = true;
+            state.loading = false;
             state.error = null;
         }
     },
@@ -124,7 +152,8 @@ const authSlice = createSlice({
                 state.error = null;
             })
             .addCase(loginUser.fulfilled, (state, action) => {
-                state.user = action.payload;
+                state.user = action.payload.user;
+                state.token = action.payload.token;
                 state.isAuthenticated = true;
                 state.loading = false;
                 state.error = null;
@@ -132,35 +161,40 @@ const authSlice = createSlice({
             .addCase(loginUser.rejected, (state, action) => {
                 state.loading = false;
                 state.error = action.payload;
+                state.isAuthenticated = false;
             })
             .addCase(signupUser.pending, (state) => {
-            state.loading = true;
-            state.error = null;
+                state.loading = true;
+                state.error = null;
             })
             .addCase(signupUser.fulfilled, (state, action) => {
-            state.user = action.payload;
-            state.isAuthenticated = true;
-            state.loading = false;
-            state.error = null;
-         })
+                state.user = action.payload.user;
+                state.token = action.payload.token;
+                state.isAuthenticated = true;
+                state.loading = false;
+                state.error = null;
+            })
             .addCase(signupUser.rejected, (state, action) => {
-            state.loading = false;
-            state.error = action.payload;
+                state.loading = false;
+                state.error = action.payload;
+                state.isAuthenticated = false;
             });
-        }
-    });
+    }
+});
 
 export const { 
     setUser, 
     setLoading, 
     setError, 
     logout, 
-    clearError 
+    clearError,
+    loginSuccess
 } = authSlice.actions;
 
 export const selectUser = (state) => state.auth.user;
 export const selectIsAuthenticated = (state) => state.auth.isAuthenticated;
 export const selectAuthLoading = (state) => state.auth.loading;
 export const selectAuthError = (state) => state.auth.error;
+export const selectToken = (state) => state.auth.token;
 
 export default authSlice.reducer;

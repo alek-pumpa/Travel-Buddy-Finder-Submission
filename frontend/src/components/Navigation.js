@@ -50,9 +50,10 @@ const Navigation = () => {
     const navItems = [
         { name: 'Swipe', path: '/app/swipe', icon: '💖' },
         { name: 'Matches', path: '/app/matches', icon: '👥' },
-        { name: 'Chat', path: '/app/chat', icon: '💬' },
+        { name: 'Chat', path: '/app/messages', icon: '💬' },
         { name: 'Groups', path: '/app/groups', icon: '🌍' },
         { name: 'Marketplace', path: '/app/marketplace', icon: '🛒' },
+        { name: 'Journal', path: '/app/journal', icon: '📓' },
         { name: 'Profile', path: '/app/profile', icon: '👤' }
     ];
 
