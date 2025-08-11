@@ -37,7 +37,6 @@ const Login = () => {
             console.log('Login successful, result:', resultAction);
             toast.success('Login successful!');
             
-            // Force navigation after successful login
             navigate('/app/swipe', { replace: true });
             
         } catch (err) {

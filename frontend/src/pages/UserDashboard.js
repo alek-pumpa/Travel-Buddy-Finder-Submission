@@ -42,7 +42,6 @@ const UserDashboard = () => {
     }
   };
 
-  // Function to set test user data
   const handleTestLogin = () => {
     console.log('Attempting test login...');
     dispatch(loginUser({

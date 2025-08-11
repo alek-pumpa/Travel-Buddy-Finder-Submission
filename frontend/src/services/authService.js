@@ -1,6 +1,5 @@
 import { auth } from './api';
 
-// Helper: get cookie value by name
 const getCookie = (name) => {
     const cookies = document.cookie.split('; ');
     const cookie = cookies.find(c => c.startsWith(name + '='));
@@ -15,7 +14,6 @@ export const getUser = () => {
 };
 
 export const setUser = (user) => {
-    // Set cookie for 7 days, adjust as needed
     document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
 };
 

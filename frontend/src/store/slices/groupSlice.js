@@ -92,7 +92,6 @@ const groupSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
-            // Fetch group cases
             .addCase(fetchGroup.pending, (state) => {
                 state.loading = true;
                 state.error = null;
@@ -105,7 +104,6 @@ const groupSlice = createSlice({
                 state.loading = false;
                 state.error = action.payload;
             })
-            // Join group cases
             .addCase(joinGroup.pending, (state) => {
                 state.loading = true;
                 state.error = null;
@@ -121,7 +119,6 @@ const groupSlice = createSlice({
                 state.loading = false;
                 state.error = action.payload;
             })
-            // Leave group cases
             .addCase(leaveGroup.pending, (state) => {
                 state.loading = true;
                 state.error = null;

@@ -12,7 +12,6 @@ const { AppError } = require('../middleware/errorHandler');
 const path = require('path');
 const User = require('../models/User');
 
-// Import controller functions (we'll use these for new features)
 const {
     forgotPassword,
     resetPassword,
@@ -20,7 +19,6 @@ const {
     resendVerification
 } = require('../controllers/authController');
 
-// Helper function to verify token and get user (your existing code)
 const verifyAndGetUser = async (req, includePassword = false) => {
     let token = req.signedCookies.jwt;
     if (!token && req.headers.authorization?.startsWith('Bearer')) {
@@ -55,7 +53,6 @@ const verifyAndGetUser = async (req, includePassword = false) => {
     }
 };
 
-// Helper function to create and send token (your existing code)
 const createSendToken = (user, statusCode, res) => {
     const token = jwt.sign(
         { id: user._id },
@@ -85,7 +82,6 @@ const createSendToken = (user, statusCode, res) => {
     });
 };
 
-// Register new user (your existing code with enhancements)
 router.post('/signup', upload('photo'), async (req, res, next) => {
     try {
         console.log('Signup request body:', req.body);
@@ -93,7 +89,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
         
         const { email, password, name, passwordConfirm } = req.body;
 
-        // Validate input
         if (!email || !password || !name) {
             return res.status(400).json({ 
                 status: 'fail', 
@@ -101,7 +96,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
             });
         }
 
-        // Check password confirmation
         if (password !== passwordConfirm) {
             return res.status(400).json({
                 status: 'fail',
@@ -109,7 +103,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
             });
         }
 
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({ 
@@ -118,7 +111,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
             });
         }
 
-        // Validate password strength
         if (password.length < 8) {
             return res.status(400).json({
                 status: 'fail',
@@ -126,7 +118,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
             });
         }
 
-        // Check if user already exists
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ 
@@ -136,7 +127,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
         }
 
         try {
-            // Create new user with default preferences
             const userData = {
                 email: email.toLowerCase(),
                 password,
@@ -154,12 +144,10 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
                 languages: []
             };
 
-            // Add photo if uploaded
             if (req.file) {
                 userData.photo = req.file.filename;
             }
 
-            // Handle additional data from frontend
             if (req.body.travelPreferences) {
                 try {
                     const prefs = typeof req.body.travelPreferences === 'string' 
@@ -202,7 +190,6 @@ router.post('/signup', upload('photo'), async (req, res, next) => {
     }
 });
 
-// Login user (your existing code with enhancements)
 router.post('/login', authLimiter, async (req, res, next) => {
     try {
         const { email, password } = req.body;
@@ -218,21 +205,36 @@ router.post('/login', authLimiter, async (req, res, next) => {
             throw new AppError('Please provide a valid email address', 400);
         }
 
-        // Add delay to prevent timing attacks
         await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 100));
 
-        const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
-        
+        const user = await User.findOne({ email: email.toLowerCase() }).select('+password +active');
+                
+        console.log('Login Debug - Full User Object:', {
+            userExists: !!user,
+            userId: user?._id,
+            userEmail: user?.email,
+            userActive: user?.active,
+            activeType: typeof user?.active,
+            activeValue: user?.active,
+            hasPassword: !!user?.password
+        });
+
         if (!user) {
             throw new AppError('Invalid credentials', 401);
         }
 
-        // Check if account is active
+        console.log('Active check:', {
+            active: user.active,
+            isActiveFalse: user.active === false,
+            isActiveUndefined: user.active === undefined,
+            isActiveNull: user.active === null
+        });
+
         if (!user.active) {
+            console.log('User account is inactive:', user.active);
             throw new AppError('Your account has been deactivated. Please contact support.', 401);
         }
 
-        // Check if account is locked
         if (user.lockUntil && user.lockUntil > Date.now()) {
             const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 60000);
             throw new AppError(`Account is temporarily locked. Please try again in ${remainingTime} minutes.`, 423);
@@ -254,14 +256,12 @@ router.post('/login', authLimiter, async (req, res, next) => {
             throw new AppError(`Invalid credentials. ${attemptsLeft} attempts remaining.`, 401);
         }
 
-        // Reset login attempts on successful login
         if (user.loginAttempts > 0 || user.lockUntil) {
             user.loginAttempts = 0;
             user.lockUntil = undefined;
             user.lastActive = new Date();
             await user.save({ validateBeforeSave: false });
         } else {
-            // Just update last active
             user.lastActive = new Date();
             await user.save({ validateBeforeSave: false });
         }
@@ -273,7 +273,6 @@ router.post('/login', authLimiter, async (req, res, next) => {
     }
 });
 
-// Logout user (your existing code)
 router.post('/logout', (req, res) => {
     res.cookie('jwt', 'loggedout', {
         expires: new Date(Date.now() + 10 * 1000),
@@ -289,7 +288,6 @@ router.post('/logout', (req, res) => {
     });
 });
 
-// Refresh token (your existing code)
 router.post('/refresh-token', async (req, res, next) => {
     try {
         const user = await verifyAndGetUser(req);
@@ -299,7 +297,6 @@ router.post('/refresh-token', async (req, res, next) => {
     }
 });
 
-// Get current user (your existing code)
 router.get('/me', async (req, res, next) => {
     try {
         const user = await verifyAndGetUser(req);
@@ -314,7 +311,6 @@ router.get('/me', async (req, res, next) => {
     }
 });
 
-// Check authentication status
 router.get('/check-auth', protect, async (req, res) => {
     res.status(200).json({
         status: 'success',
@@ -324,7 +320,6 @@ router.get('/check-auth', protect, async (req, res) => {
     });
 });
 
-// Update password (your existing code with enhancements)
 router.patch('/update-password', protect, async (req, res, next) => {
     try {
         const { currentPassword, newPassword, passwordConfirm } = req.body;
@@ -357,7 +352,6 @@ router.patch('/update-password', protect, async (req, res, next) => {
     }
 });
 
-// Upload profile picture (your existing code)
 router.post('/upload-profile-picture', protect, upload('profilePicture'), async (req, res, next) => {
     try {
         if (!req.file) {
@@ -383,11 +377,9 @@ router.post('/upload-profile-picture', protect, upload('profilePicture'), async 
     }
 });
 
-// Password reset routes (using controller functions)
 router.post('/forgot-password', forgotPassword);
 router.patch('/reset-password/:token', resetPassword);
 
-// Email verification routes (using controller functions)
 router.get('/verify-email/:token', verifyEmail);
 router.post('/resend-verification', resendVerification);
 

@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
-// Create axios instance with default config
 const api = axios.create({
     baseURL: API_URL,
     headers: {
@@ -16,7 +15,6 @@ const api = axios.create({
     }
 });
 
-// Add response interceptor to handle auth errors
 api.interceptors.response.use(
     (response) => response,
     async (error) => {
@@ -28,7 +26,6 @@ api.interceptors.response.use(
     }
 );
 
-// Auth endpoints
 export const auth = {
     login: async (credentials) => {
         const response = await api.post('/auth/login', credentials);
@@ -44,7 +41,6 @@ export const auth = {
     logout: () => api.post('/auth/logout')
 };
 
-// Chat endpoints
 export const chat = {
     getConversations: () => api.get('/chat/conversations'),
     getMessages: (conversationId) => api.get(`/chat/conversations/${conversationId}/messages`),
@@ -52,7 +48,6 @@ export const chat = {
     createConversation: (userId) => api.post('/chat/conversations', { userId })
 };
 
-// User endpoints
 export const users = {
     getProfile: () => api.get('/users/profile'),
     updateProfile: (formData) => {
@@ -78,7 +73,6 @@ export const users = {
     createMatch: (userId) => api.post(`/matches/${userId}`)
 };
 
-// Journals endpoints
 export const journals = {
     getAll: () => api.get('/journals'),
     getOne: (id) => api.get(`/journals/${id}`),
@@ -90,7 +84,6 @@ export const journals = {
     deleteEntry: (journalId, entryId) => api.delete(`/journals/${journalId}/entries/${entryId}`)
 };
 
-// Create a named export for the API object
 export const apiService = {
     likePost: (postId) => api.post(`/posts/${postId}/like`),
     auth,
@@ -99,5 +92,4 @@ export const apiService = {
     journals,
 };
 
-// Export the axios instance as default
 export default api;

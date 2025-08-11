@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setUser(null);
         setToken(null);
-        // Optionally clear local storage or cookies
     };
 
     return (

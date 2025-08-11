@@ -34,7 +34,6 @@ import Messages from './components/Messages';
 import MessageThread from './components/MessageThread';
 
 
-// Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     const loading = useSelector(selectLoading);
@@ -54,7 +53,6 @@ const ProtectedRoute = ({ children }) => {
     return children;
 };
 
-// Public Route Component (redirect if authenticated)
 const PublicRoute = ({ children }) => {
     const isAuthenticated = useSelector(selectIsAuthenticated);
     
@@ -83,13 +81,11 @@ const NotificationHandler = () => {
     );
 };
 
-// Auth persistence component
 const AuthPersistence = ({ children }) => {
     const dispatch = useDispatch();
     const isAuthenticated = useSelector(selectIsAuthenticated);
 
     useEffect(() => {
-        // Restore auth state on app load
         const token = localStorage.getItem('token');
         const user = localStorage.getItem('user');
         
@@ -98,13 +94,11 @@ const AuthPersistence = ({ children }) => {
                 const parsedUser = JSON.parse(user);
                 console.log('Restoring auth state for user:', parsedUser.email);
                 
-                // Restore from localStorage first
                 dispatch(loginSuccess({
                     user: parsedUser,
                     token: token
                 }));
 
-                // Then verify token is still valid with backend
                 fetch(`${process.env.REACT_APP_API_URL}/auth/check-auth`, {
                     method: 'GET',
                     headers: {
@@ -121,7 +115,6 @@ const AuthPersistence = ({ children }) => {
                 })
                 .then(data => {
                     if (data.status === 'success' && data.data.user) {
-                        // Token is valid, update with fresh user data
                         dispatch(loginSuccess({
                             user: data.data.user,
                             token: token
@@ -133,7 +126,6 @@ const AuthPersistence = ({ children }) => {
                 })
                 .catch(error => {
                     console.error('Token verification failed:', error);
-                    // Clear invalid auth data
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     dispatch(setUser(null));
@@ -152,12 +144,10 @@ const AuthPersistence = ({ children }) => {
 
 const AppContent = () => {
     useEffect(() => {
-        // Check user's preferred color scheme
         if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
             document.documentElement.classList.add('dark');
         }
 
-        // Listen for changes in color scheme preference
         const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
         const handleChange = (e) => {
             if (e.matches) {

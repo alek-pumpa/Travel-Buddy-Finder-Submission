@@ -2,7 +2,6 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import socketService from '../../services/socketService.js';
 import { addNotification } from './notificationsSlice.js';
 
-// Async thunks
 export const fetchMessages = createAsyncThunk(
     'chat/fetchMessages',
     async (conversationId) => {
@@ -50,7 +49,6 @@ const chatSlice = createSlice({
             }
             state.messages[conversationId].push(message);
             
-            // Update unread count
             if (!message.isFromCurrentUser) {
                 state.unreadCounts[conversationId] = (state.unreadCounts[conversationId] || 0) + 1;
             }
@@ -112,7 +110,6 @@ const chatSlice = createSlice({
     }
 });
 
-// Selectors
 export const selectMessages = (state) => state.chat.messages;
 export const selectConversations = (state) => state.chat.conversations;
 export const selectTypingStatus = (state) => state.chat.typingStatus;
@@ -125,17 +122,14 @@ export const selectTotalUnreadCount = (state) => {
     return Object.values(counts).reduce((total, count) => total + (count || 0), 0);
 };
 
-// Thunk for handling new messages
 export const handleNewMessage = (messageData) => (dispatch, getState) => {
     const { conversationId, message, sender } = messageData;
     const state = getState();
     const currentPath = state.router?.location?.pathname;
     const isInConversation = currentPath === `/app/messages/${conversationId}`;
     
-    // Add the message to the chat
     dispatch(addMessage({ conversationId, message }));
     
-    // Create a notification and increment unread count if not from current user and not in conversation
     if (!message.isFromCurrentUser && !isInConversation) {
         dispatch(addNotification({
             id: `message-${message.id}`,
@@ -145,7 +139,6 @@ export const handleNewMessage = (messageData) => (dispatch, getState) => {
             data: { conversationId, messageId: message.id }
         }));
         
-        // Update unread count for the conversation
         const currentCount = state.chat.unreadCounts[conversationId] || 0;
         dispatch(updateUnreadCount({ conversationId, count: currentCount + 1 }));
     }

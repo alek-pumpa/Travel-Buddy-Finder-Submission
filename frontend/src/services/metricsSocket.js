@@ -10,7 +10,7 @@ class MetricsSocketService extends BaseSocketService {
         this.metricsBuffer = new Map();
         this.updateInterval = 1000;
         this.updateScheduled = false;
-        this.metricsListeners = new Map(); // Separate from base class eventHandlers
+        this.metricsListeners = new Map();
     }
 
     connect() {

@@ -63,14 +63,12 @@ const userSlice = createSlice({
     }
 });
 
-// Export all actions
 export const { 
     clearError, 
     resetProfileUpdate,
     setSettings
 } = userSlice.actions;
 
-// Export all selectors
 export const selectLoading = (state) => state.user.loading;
 export const selectError = (state) => state.user.error;
 export const selectProfileUpdateSuccess = (state) => state.user.profileUpdateSuccess;

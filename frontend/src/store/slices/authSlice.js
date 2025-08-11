@@ -21,11 +21,9 @@ export const loginUser = createAsyncThunk(
 
             console.log('Login response status:', response.status);
 
-            // Get response text first to see what we're getting
             const responseText = await response.text();
             console.log('Login response text:', responseText);
 
-            // Try to parse as JSON
             let data;
             try {
                 data = JSON.parse(responseText);
@@ -65,7 +63,7 @@ export const signupUser = createAsyncThunk(
             const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/signup`, {
                 method: 'POST',
                 credentials: 'include',
-                body: formData // Send FormData directly
+                body: formData 
             });
 
             console.log('Signup response status:', response.status);

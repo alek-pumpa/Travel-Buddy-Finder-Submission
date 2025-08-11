@@ -122,7 +122,6 @@ class BaseSocketService {
         }
     }
 
-    // Hook methods to be overridden by child classes
     onConnect() {}
     onDisconnect() {}
 }

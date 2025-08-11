@@ -2,7 +2,6 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { users } from '../../services/api';
 import { addNotification } from './notificationsSlice';
 
-// Async thunks
 export const fetchMatches = createAsyncThunk(
     'matches/fetchMatches',
     async (_, { rejectWithValue }) => {
@@ -81,7 +80,6 @@ const matchesSlice = createSlice({
         resetMatchState: () => initialState
     },
     extraReducers: (builder) => {
-        // Handle fetchMatches
         builder
             .addCase(fetchMatches.pending, (state) => {
                 state.loading = true;
@@ -97,7 +95,6 @@ const matchesSlice = createSlice({
                 state.error = action.payload;
             })
 
-        // Handle fetchPotentialMatches
         builder
             .addCase(fetchPotentialMatches.pending, (state) => {
                 state.loading = true;
@@ -114,7 +111,6 @@ const matchesSlice = createSlice({
     }
 });
 
-// Selectors
 export const selectMatches = (state) => state.matches.matches;
 export const selectPotentialMatches = (state) => state.matches.potentialMatches;
 export const selectCurrentMatch = (state) => state.matches.currentMatch;
@@ -123,7 +119,6 @@ export const selectMatchStats = (state) => state.matches.matchStats;
 export const selectMatchesLoading = (state) => state.matches.loading;
 export const selectMatchesError = (state) => state.matches.error;
 
-// Actions
 export const {
     setCurrentMatch,
     addMatch,
@@ -135,11 +130,9 @@ export const {
     resetMatchState
 } = matchesSlice.actions;
 
-// Thunks
 export const handleNewMatch = (matchData) => (dispatch) => {
     dispatch(addMatch(matchData));
     
-    // Create a notification for the new match
     dispatch(addNotification({
         id: `match-${matchData.id}`,
         type: 'match',
@@ -151,7 +144,6 @@ export const handleNewMatch = (matchData) => (dispatch) => {
 
 export const handleMatchRemoval = (matchId) => (dispatch) => {
     dispatch(removeMatch(matchId));
-    // Additional cleanup actions can be added here
 };
 
 export default matchesSlice.reducer;

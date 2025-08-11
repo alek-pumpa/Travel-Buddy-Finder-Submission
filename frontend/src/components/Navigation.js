@@ -7,6 +7,7 @@ import { logout, selectUser } from '../store/slices/authSlice';
 const Navigation = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
+    const [imageError, setImageError] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const dispatch = useDispatch();
@@ -19,6 +20,10 @@ const Navigation = () => {
             document.documentElement.classList.add('dark');
         }
     }, []);
+
+    useEffect(() => {
+        setImageError(false);
+    }, [user?.photo, user?.profilePicture]);
 
     const toggleDarkMode = () => {
         const newDarkMode = !isDarkMode;
@@ -53,9 +58,25 @@ const Navigation = () => {
         { name: 'Chat', path: '/app/messages', icon: '💬' },
         { name: 'Groups', path: '/app/groups', icon: '🌍' },
         { name: 'Marketplace', path: '/app/marketplace', icon: '🛒' },
-        { name: 'Journal', path: '/app/journal', icon: '📓' },
         { name: 'Profile', path: '/app/profile', icon: '👤' }
     ];
+
+    const getProfilePictureUrl = () => {
+        if (imageError) return '/default-avatar.jpg';
+        
+        if (user?.photo) {
+            return `${process.env.REACT_APP_API_URL}/uploads/${user.photo}`;
+        }
+        if (user?.profilePicture) {
+            return `${process.env.REACT_APP_API_URL}${user.profilePicture}`;
+        }
+        return '/default-avatar.jpg';
+    };
+
+    const handleImageError = () => {
+        console.log('Profile picture failed to load, using default');
+        setImageError(true);
+    };
 
     return (
         <nav className="bg-white dark:bg-gray-800 shadow-lg">
@@ -95,16 +116,13 @@ const Navigation = () => {
                         </button>
 
                         <div className="flex items-center space-x-4">
-                            {user?.profilePicture && (
-                                <img
-                                    src={`${process.env.REACT_APP_API_URL}/public${user.profilePicture}`}
-                                    alt={user.name}
-                                    className="w-8 h-8 rounded-full object-cover"
-                                    onError={(e) => {
-                                        e.target.src = '/default-avatar.jpg';
-                                    }}
-                                />
-                            )}
+                            {/* Fixed Profile Picture - Desktop */}
+                            <img
+                                src={getProfilePictureUrl()}
+                                alt={user?.name || 'User'}
+                                className="w-8 h-8 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600"
+                                onError={handleImageError}
+                            />
                             <span className="text-gray-700 dark:text-gray-300">
                                 {user?.name || 'User'}
                             </span>
@@ -159,16 +177,13 @@ const Navigation = () => {
                             
                             <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                                 <div className="flex items-center px-3 py-2">
-                                    {user?.profilePicture && (
-                                        <img
-                                            src={`${process.env.REACT_APP_API_URL}/public${user.profilePicture}`}
-                                            alt={user.name}
-                                            className="w-10 h-10 rounded-full object-cover mr-3"
-                                            onError={(e) => {
-                                                e.target.src = '/default-avatar.jpg';
-                                            }}
-                                        />
-                                    )}
+                                    {/* Fixed Profile Picture - Mobile */}
+                                    <img
+                                        src={getProfilePictureUrl()}
+                                        alt={user?.name || 'User'}
+                                        className="w-10 h-10 rounded-full object-cover mr-3 border-2 border-gray-200 dark:border-gray-600"
+                                        onError={handleImageError}
+                                    />
                                     <span className="text-gray-700 dark:text-gray-300">
                                         {user?.name || 'User'}
                                     </span>
