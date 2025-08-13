@@ -27,9 +27,7 @@ const MessageThread = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    // Helper function to get current user ID
     const getCurrentUserId = () => {
-        // Try to get user ID from localStorage in multiple ways
         const userStr = localStorage.getItem('user');
         
         if (userStr) {
@@ -41,7 +39,6 @@ const MessageThread = () => {
             }
         }
         
-        // Try to get from token
         const token = localStorage.getItem('token');
         if (token) {
             try {
@@ -72,7 +69,6 @@ const MessageThread = () => {
                 
                 if (currentConversation) {
                     setConversation(currentConversation);
-                    // Get the other participant (backend already filters out current user)
                     if (currentConversation.participants && currentConversation.participants.length > 0) {
                         setOtherUser(currentConversation.participants[0]);
                     }
@@ -119,7 +115,7 @@ const MessageThread = () => {
         if (!newMessage.trim() || sending) return;
 
         const messageContent = newMessage.trim();
-        setNewMessage(''); // Clear input immediately for better UX
+        setNewMessage('');
         setSending(true);
 
         try {
@@ -142,15 +138,12 @@ const MessageThread = () => {
             const data = await response.json();
             console.log('Message sent:', data.data);
             
-            // Add the new message to the list
             setMessages(prev => [...prev, data.data]);
             
-            // Show success feedback
             toast.success('Message sent!');
         } catch (error) {
             console.error('Error sending message:', error);
             toast.error('Failed to send message');
-            // Restore the message content if sending failed
             setNewMessage(messageContent);
         } finally {
             setSending(false);
@@ -180,7 +173,6 @@ const MessageThread = () => {
         }
     };
 
-    // Group messages by date
     const groupMessagesByDate = (messages) => {
         const groups = {};
         messages.forEach(message => {

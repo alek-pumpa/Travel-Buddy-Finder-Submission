@@ -54,6 +54,17 @@ const userSchema = new mongoose.Schema({
         maxLength: [500, 'Bio cannot exceed 500 characters']
     },
     location: {
+        type: {
+            type: String,
+            enum: ['Point'],
+            required: true,
+            default: 'Point'
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true,
+            default: [0, 0]
+        },
         city: {
             type: String,
             trim: true
@@ -151,7 +162,7 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes
-//userSchema.index({ location: '2dsphere' });
+userSchema.index({ location: '2dsphere' });
 userSchema.index({ email: 1 });
 userSchema.index({ active: 1 });
 

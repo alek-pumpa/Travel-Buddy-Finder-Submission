@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { protect, restrictTo, canInteract } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const { createValidation } = require('../middleware/validation');
 const Group = require('../models/Group');
+const Message = require('../models/Message');
 const { AppError } = require('../middleware/errorHandler');
 
-// Validation schemas
 const createGroupSchema = {
     name: {
         required: true,
@@ -20,23 +20,23 @@ const createGroupSchema = {
         enum: ['travel', 'chat', 'event']
     },
     'travelDetails.destination': {
-        required: true,
+        required: (body) => body.type === 'travel',
         minLength: 2,
         maxLength: 100
     },
     'travelDetails.startDate': {
-        required: true,
-        custom: (value) => {
-            if (new Date(value) < new Date()) {
+        required: (body) => body.type === 'travel',
+        custom: (value, body) => {
+            if (body.type === 'travel' && new Date(value) < new Date()) {
                 return 'Start date must be in the future';
             }
             return null;
         }
     },
     'travelDetails.endDate': {
-        required: true,
+        required: (body) => body.type === 'travel',
         custom: (value, body) => {
-            if (new Date(value) < new Date(body.travelDetails.startDate)) {
+            if (body.type === 'travel' && new Date(value) < new Date(body.travelDetails.startDate)) {
                 return 'End date must be after start date';
             }
             return null;
@@ -44,7 +44,6 @@ const createGroupSchema = {
     }
 };
 
-// Create new group
 router.post('/',
     protect,
     createValidation(createGroupSchema),
@@ -72,7 +71,6 @@ router.post('/',
     }
 );
 
-// Get all groups (with filters)
 router.get('/', protect, async (req, res, next) => {
     try {
         const {
@@ -117,7 +115,6 @@ router.get('/', protect, async (req, res, next) => {
     }
 });
 
-// Get single group
 router.get('/:id', protect, async (req, res, next) => {
     try {
         const group = await Group.findById(req.params.id)
@@ -140,7 +137,6 @@ router.get('/:id', protect, async (req, res, next) => {
     }
 });
 
-// Update group
 router.patch('/:id', protect, async (req, res, next) => {
     try {
         const group = await Group.findById(req.params.id);
@@ -153,7 +149,6 @@ router.patch('/:id', protect, async (req, res, next) => {
             throw new AppError('Only admins can update group details', 403);
         }
 
-        // Prevent updating certain fields
         delete req.body.creator;
         delete req.body.members;
         delete req.body.pendingRequests;
@@ -178,7 +173,6 @@ router.patch('/:id', protect, async (req, res, next) => {
     }
 });
 
-// Join group request
 router.post('/:id/join', protect, async (req, res, next) => {
     try {
         const group = await Group.findById(req.params.id);
@@ -192,7 +186,6 @@ router.post('/:id/join', protect, async (req, res, next) => {
         }
 
         if (group.settings.joinRequiresApproval) {
-            // Add to pending requests
             group.pendingRequests.push({
                 user: req.user._id,
                 status: 'pending'
@@ -204,7 +197,6 @@ router.post('/:id/join', protect, async (req, res, next) => {
                 message: 'Join request sent successfully'
             });
         } else {
-            // Direct join
             await group.addMember(req.user._id);
             
             res.status(200).json({
@@ -217,7 +209,6 @@ router.post('/:id/join', protect, async (req, res, next) => {
     }
 });
 
-// Handle join request
 router.patch('/:id/requests/:userId', protect, async (req, res, next) => {
     try {
         const { status } = req.body;
@@ -259,7 +250,6 @@ router.patch('/:id/requests/:userId', protect, async (req, res, next) => {
     }
 });
 
-// Leave group
 router.delete('/:id/leave', protect, async (req, res, next) => {
     try {
         const group = await Group.findById(req.params.id);
@@ -287,7 +277,6 @@ router.delete('/:id/leave', protect, async (req, res, next) => {
     }
 });
 
-// Update member role
 router.patch('/:id/members/:userId/role', protect, async (req, res, next) => {
     try {
         const { role } = req.body;
@@ -316,7 +305,6 @@ router.patch('/:id/members/:userId/role', protect, async (req, res, next) => {
     }
 });
 
-// Delete group
 router.delete('/:id', protect, async (req, res, next) => {
     try {
         const group = await Group.findById(req.params.id);
@@ -334,6 +322,57 @@ router.delete('/:id', protect, async (req, res, next) => {
         res.status(204).json({
             status: 'success',
             data: null
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.get('/:id/messages', protect, async (req, res, next) => {
+    try {
+        const group = await Group.findById(req.params.id);
+        if (!group) throw new AppError('Group not found', 404);
+
+        if (!group.isMember(req.user._id)) {
+            throw new AppError('You must be a member to view messages', 403);
+        }
+
+        const messages = await Message.find({ group: group._id })
+            .populate('sender', 'name profilePicture')
+            .sort('createdAt');
+
+        res.status(200).json({
+            status: 'success',
+            data: { messages }
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.post('/:id/messages', protect, async (req, res, next) => {
+    try {
+        const group = await Group.findById(req.params.id);
+        if (!group) throw new AppError('Group not found', 404);
+
+        if (!group.isMember(req.user._id)) {
+            throw new AppError('You must be a member to send messages', 403);
+        }
+
+        const { content } = req.body;
+        if (!content || !content.trim()) {
+            throw new AppError('Message content required', 400);
+        }
+
+        const message = await Message.create({
+            group: group._id,
+            sender: req.user._id,
+            content
+        });
+
+        res.status(201).json({
+            status: 'success',
+            data: { message }
         });
     } catch (error) {
         next(error);

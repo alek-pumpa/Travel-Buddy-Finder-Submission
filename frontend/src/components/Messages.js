@@ -1,23 +1,66 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 const Messages = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const [showGroupModal, setShowGroupModal] = useState(false);
+    const [groupName, setGroupName] = useState('');
+    const [selectedUserIds, setSelectedUserIds] = useState([]);
+    const [matchedUsers, setMatchedUsers] = useState([]);
+    const [creatingGroup, setCreatingGroup] = useState(false);
+
     useEffect(() => {
         fetchConversations();
-    }, []);
+        // eslint-disable-next-line
+    }, [location.pathname]);
 
-    const fetchConversations = async () => {
+    useEffect(() => {
+        if (showGroupModal) {
+            fetchMatchedUsers();
+        }
+        // eslint-disable-next-line
+    }, [showGroupModal]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const sellerId = params.get('seller');
+        if (sellerId) {
+            fetch(`${process.env.REACT_APP_API_URL}/messages/conversations`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ participantId: sellerId })
+            })
+            .then(res => {
+                if (res.status === 200 || res.status === 201) return res.json();
+                throw new Error('Failed to create or fetch conversation');
+            })
+            .then(data => {
+                if (data.data && data.data._id) {
+                    navigate(`/app/messages/${data.data._id}`);
+                }
+            })
+            .catch(() => {
+                toast.error('Could not open chat with seller.');
+            });
+        }
+    }, [location, navigate]);
+
+    async function fetchConversations() {
         try {
             setLoading(true);
-            console.log('Fetching conversations...');
-            
+            setError(null);
+
             const response = await fetch(`${process.env.REACT_APP_API_URL}/messages/conversations`, {
                 method: 'GET',
                 headers: {
@@ -27,24 +70,79 @@ const Messages = () => {
                 credentials: 'include'
             });
 
-            console.log('Conversations response status:', response.status);
-
-            if (!response.ok) {
+            if (response.status === 200 || response.status === 304) {
+                const data = await response.json();
+                setConversations(data.data || []);
+            } else {
                 const errorData = await response.json();
                 throw new Error(errorData.message || 'Failed to fetch conversations');
             }
-
-            const data = await response.json();
-            console.log('Conversations data:', data);
-            
-            setConversations(data.data || []);
         } catch (error) {
-            console.error('Error fetching conversations:', error);
             setError(error.message);
         } finally {
             setLoading(false);
         }
-    };
+    }
+
+    async function fetchMatchedUsers() {
+        try {
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/matches/my-matches`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+            });
+            const data = await response.json();
+            if (data.status === 'success') {
+                setMatchedUsers(
+                    (data.data || []).map(match => match.otherUser).filter(Boolean)
+                );
+            } else {
+                setMatchedUsers([]);
+            }
+        } catch {
+            setMatchedUsers([]);
+        }
+    }
+
+    async function handleCreateGroup(e) {
+        e.preventDefault();
+        if (!groupName || selectedUserIds.length < 1) return;
+        setCreatingGroup(true);
+        try {
+            const groupBody = {
+                name: groupName,
+                type: 'chat',
+                members: Array.from(new Set([...selectedUserIds, localStorage.getItem('userId')]))
+            };
+            const response = await fetch(`${process.env.REACT_APP_API_URL}/groups`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify(groupBody)
+            });
+            const data = await response.json();
+        if (data.data && data.data.group && data.data.group._id) {
+                setShowGroupModal(false);
+                setGroupName('');
+                setSelectedUserIds([]);
+                toast.success('Group chat created!');
+                navigate(`/app/groups/${data.data.group._id}`);
+            }
+         else {
+            throw new Error(data.message || 'Failed to create group');
+            }
+        } catch (err) {
+            toast.error('Failed to create group chat.');
+        } finally {
+            setCreatingGroup(false);
+        }
+    }
 
     const formatTimestamp = (timestamp) => {
         if (!timestamp) return '';
@@ -63,8 +161,7 @@ const Messages = () => {
 
     const getOtherParticipant = (participants) => {
         if (!participants || participants.length === 0) return null;
-        // Find the participant that's not the current user
-        return participants[0]; // Since we're filtering out current user in backend
+        return participants[0];
     };
 
     const openConversation = (conversationId) => {
@@ -93,7 +190,72 @@ const Messages = () => {
                     <p className="text-gray-600 dark:text-gray-400">
                         Chat with your travel matches
                     </p>
+                    <button
+                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-4"
+                        onClick={() => setShowGroupModal(true)}
+                    >
+                        + New Group Chat
+                    </button>
                 </div>
+
+                {/* Group Creation Modal */}
+                {showGroupModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white dark:bg-gray-800 p-6 rounded-lg w-full max-w-md">
+                            <h2 className="text-xl font-bold mb-4">Create Group Chat</h2>
+                            <form onSubmit={handleCreateGroup}>
+                                <label className="block mb-2 font-medium">Group Name</label>
+                                <input
+                                    type="text"
+                                    className="w-full px-3 py-2 border rounded mb-4 dark:bg-gray-700 dark:text-white"
+                                    value={groupName}
+                                    onChange={e => setGroupName(e.target.value)}
+                                    required
+                                />
+                                <label className="block mb-2 font-medium">Select Members</label>
+                                <div className="max-h-40 overflow-y-auto mb-4">
+                                    {matchedUsers.length === 0 && (
+                                        <div className="text-gray-500 text-sm">No matches available.</div>
+                                    )}
+                                    {matchedUsers.map(user => (
+                                        <label key={user._id} className="flex items-center mb-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedUserIds.includes(user._id)}
+                                                onChange={e => {
+                                                    if (e.target.checked) {
+                                                        setSelectedUserIds(prev => [...prev, user._id]);
+                                                    } else {
+                                                        setSelectedUserIds(prev => prev.filter(id => id !== user._id));
+                                                    }
+                                                }}
+                                                className="mr-2"
+                                            />
+                                            {user.name}
+                                        </label>
+                                    ))}
+                                </div>
+                                <div className="flex justify-end space-x-2">
+                                    <button
+                                        type="button"
+                                        className="px-4 py-2 bg-gray-200 rounded"
+                                        onClick={() => setShowGroupModal(false)}
+                                        disabled={creatingGroup}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-blue-600 text-white rounded"
+                                        disabled={!groupName || selectedUserIds.length < 1 || creatingGroup}
+                                    >
+                                        {creatingGroup ? 'Creating...' : 'Create'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )}
 
                 {/* Error State */}
                 {error && (

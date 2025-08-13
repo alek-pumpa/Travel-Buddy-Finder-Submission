@@ -136,13 +136,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/matches', matchRoutes);
-app.use('/api/groups', groupRoutes);
+app.use('/api/groups', require('./routes/groups'));
 app.use('/api/journals', journalRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/forum', forumRoutes);
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/chat', require('./routes/chat'));
 app.use('/api/marketplace', marketplaceRoutes);
+
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

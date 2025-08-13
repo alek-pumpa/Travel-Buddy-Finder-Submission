@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const MarketplacePage = () => {
     const [listings, setListings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showNewListing, setShowNewListing] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const navigate = useNavigate();
+
     const [filters, setFilters] = useState({
         search: '',
         category: '',
@@ -27,6 +31,7 @@ const MarketplacePage = () => {
 
     useEffect(() => {
         fetchListings();
+        // eslint-disable-next-line
     }, [filters]);
 
     const fetchListings = async () => {
@@ -57,15 +62,48 @@ const MarketplacePage = () => {
         }
     };
 
+    const parseLocation = (locationStr) => {
+        if (!locationStr) {
+            return {
+                type: 'Point',
+                coordinates: [0, 0],
+                city: '',
+                country: ''
+            };
+        }
+        const [city, country] = locationStr.split(',').map(s => s.trim());
+        return {
+            type: 'Point',
+            coordinates: [0, 0],
+            city: city || '',
+            country: country || ''
+        };
+    };
+
+    const handleContactSeller = (sellerId) => {
+     // Optionally: create a conversation via API here
+        navigate(`/app/messages?seller=${sellerId}`);
+        };
+
     const handleCreateListing = async (e) => {
         e.preventDefault();
-        
+
         if (!newListing.title || !newListing.description || !newListing.price) {
             toast.error('Please fill in all required fields');
             return;
         }
 
+        setSubmitting(true);
+
         try {
+            const geoLocation = parseLocation(newListing.location);
+
+            const listingToSend = {
+                ...newListing,
+                price: parseFloat(newListing.price),
+                location: geoLocation
+            };
+
             const response = await fetch(`${process.env.REACT_APP_API_URL}/marketplace/listings`, {
                 method: 'POST',
                 headers: {
@@ -73,7 +111,7 @@ const MarketplacePage = () => {
                     'Content-Type': 'application/json'
                 },
                 credentials: 'include',
-                body: JSON.stringify(newListing)
+                body: JSON.stringify(listingToSend)
             });
 
             if (!response.ok) {
@@ -95,6 +133,8 @@ const MarketplacePage = () => {
         } catch (error) {
             console.error('Error creating listing:', error);
             toast.error('Failed to create listing');
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -281,7 +321,7 @@ const MarketplacePage = () => {
                                         value={newListing.location}
                                         onChange={(e) => setNewListing(prev => ({ ...prev, location: e.target.value }))}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                                        placeholder="City, State"
+                                        placeholder="City, Country"
                                     />
                                 </div>
 
@@ -290,14 +330,16 @@ const MarketplacePage = () => {
                                         type="button"
                                         onClick={() => setShowNewListing(false)}
                                         className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                                        disabled={submitting}
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                        disabled={submitting}
                                     >
-                                        Create Listing
+                                        {submitting ? 'Creating...' : 'Create Listing'}
                                     </button>
                                 </div>
                             </form>
@@ -366,9 +408,17 @@ const MarketplacePage = () => {
                                             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                 <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
                                             </svg>
-                                            {listing.location}
+                                            {listing.location?.city ||
+                                                listing.location?.country ||
+                                                (listing.location?.coordinates &&
+                                                    (listing.location.coordinates[0] !== 0 || listing.location.coordinates[1] !== 0)
+                                                    ? `[${listing.location.coordinates[1]}, ${listing.location.coordinates[0]}]`
+                                                    : 'No location')}
                                         </div>
-                                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+                                        <button
+                                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                                            onClick={() => handleContactSeller(listing.createdBy?._id)}
+                                        >
                                             Contact Seller
                                         </button>
                                     </div>

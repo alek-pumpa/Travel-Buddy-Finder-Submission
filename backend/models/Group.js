@@ -133,28 +133,23 @@ const groupSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-// Indexes
 groupSchema.index({ name: 'text', description: 'text' });
 groupSchema.index({ 'travelDetails.destination': 1 });
 groupSchema.index({ 'travelDetails.startDate': 1 });
 groupSchema.index({ creator: 1 });
 groupSchema.index({ 'members.user': 1 });
 
-// Virtual populate messages
 groupSchema.virtual('messages', {
     ref: 'Message',
     foreignField: 'groupId',
     localField: '_id'
 });
 
-// Middleware
 groupSchema.pre('save', function(next) {
-    // Update lastActivity on any changes
     this.lastActivity = Date.now();
     next();
 });
 
-// Methods
 groupSchema.methods.isMember = function(userId) {
     return this.members.some(member => 
         member.user.toString() === userId.toString() && 
@@ -215,7 +210,6 @@ groupSchema.methods.updateMemberRole = async function(userId, newRole) {
     return this.save();
 };
 
-// Static methods
 groupSchema.statics.getActiveGroups = function(userId) {
     return this.find({
         'members.user': userId,

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+const MarketplaceListing = require('../models/MarketplaceListing');
 
 // Mock data for now
 const mockListings = [
@@ -61,40 +62,25 @@ const mockListings = [
 router.get('/listings', async (req, res) => {
     try {
         const { category, search, location, minPrice, maxPrice } = req.query;
-        
-        let filteredListings = mockListings;
-        
-        if (category) {
-            filteredListings = filteredListings.filter(listing => 
-                listing.category.toLowerCase().includes(category.toLowerCase())
-            );
-        }
-        
-        if (search) {
-            filteredListings = filteredListings.filter(listing =>
-                listing.title.toLowerCase().includes(search.toLowerCase()) ||
-                listing.description.toLowerCase().includes(search.toLowerCase())
-            );
-        }
-        
-        if (location) {
-            filteredListings = filteredListings.filter(listing =>
-                listing.location.toLowerCase().includes(location.toLowerCase())
-            );
-        }
-        
-        if (minPrice) {
-            filteredListings = filteredListings.filter(listing => listing.price >= parseInt(minPrice));
-        }
-        
-        if (maxPrice) {
-            filteredListings = filteredListings.filter(listing => listing.price <= parseInt(maxPrice));
-        }
-        
+        const query = {};
+
+        if (category) query.category = new RegExp(category, 'i');
+        if (search) query.$or = [
+            { title: new RegExp(search, 'i') },
+            { description: new RegExp(search, 'i') }
+        ];
+        if (location) query['location.city'] = new RegExp(location, 'i');
+        if (minPrice) query.price = { ...query.price, $gte: parseFloat(minPrice) };
+        if (maxPrice) query.price = { ...query.price, $lte: parseFloat(maxPrice) };
+
+        const listings = await MarketplaceListing.find(query)
+            .sort({ createdAt: -1 })
+            .populate('createdBy', 'name');
+
         res.status(200).json({
             status: 'success',
-            results: filteredListings.length,
-            data: filteredListings
+            results: listings.length,
+            data: listings
         });
     } catch (error) {
         console.error('Error fetching listings:', error);
@@ -108,7 +94,7 @@ router.get('/listings', async (req, res) => {
 // Get listing by ID
 router.get('/listings/:id', async (req, res) => {
     try {
-        const listing = mockListings.find(l => l._id === req.params.id);
+        const listing = await MarketplaceListing.findById(req.params.id).populate('createdBy', 'name');
         
         if (!listing) {
             return res.status(404).json({
@@ -133,28 +119,29 @@ router.get('/listings/:id', async (req, res) => {
 // Create new listing (protected route)
 router.post('/listings', protect, async (req, res) => {
     try {
-        const { title, description, price, category, condition, location } = req.body;
-        
-        const newListing = {
-            _id: Date.now().toString(),
+        const { title, description, price, category, condition, location, images } = req.body;
+
+        const geoLocation = location && location.coordinates
+            ? {
+                type: 'Point',
+                coordinates: location.coordinates,
+                address: location.address || '',
+                city: location.city || '',
+                country: location.country || ''
+            }
+            : undefined;
+
+        const newListing = await MarketplaceListing.create({
             title,
             description,
-            price: parseInt(price),
+            price: parseFloat(price),
             category,
             condition,
-            location,
-            seller: {
-                _id: req.user._id,
-                name: req.user.name,
-                rating: 5.0
-            },
-            images: [],
-            createdAt: new Date().toISOString(),
-            status: 'available'
-        };
-        
-        mockListings.unshift(newListing);
-        
+            location: geoLocation,
+            images: images || [],
+            createdBy: req.user._id
+        });
+
         res.status(201).json({
             status: 'success',
             data: newListing

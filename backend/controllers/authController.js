@@ -24,7 +24,6 @@ const createSendToken = (user, statusCode, res) => {
 
     res.cookie('jwt', token, cookieOptions);
 
-    // Remove password from output
     user.password = undefined;
 
     res.status(statusCode).json({
@@ -43,7 +42,6 @@ const signup = async (req, res, next) => {
 
         const { name, email, password, passwordConfirm } = req.body;
 
-        // Validate required fields
         if (!name || !email || !password) {
             return res.status(400).json({
                 status: 'fail',
@@ -58,7 +56,6 @@ const signup = async (req, res, next) => {
             });
         }
 
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({
@@ -67,7 +64,6 @@ const signup = async (req, res, next) => {
             });
         }
 
-        // Check if user already exists
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({
@@ -76,7 +72,6 @@ const signup = async (req, res, next) => {
             });
         }
 
-        // Prepare user data
         const userData = {
             name: name.trim(),
             email: email.toLowerCase().trim(),
@@ -84,12 +79,10 @@ const signup = async (req, res, next) => {
             passwordConfirm
         };
 
-        // Handle profile picture from file upload
         if (req.file) {
             userData.photo = req.file.filename;
         }
 
-        // Handle travel preferences
         if (req.body.travelPreferences) {
             try {
                 userData.travelPreferences = typeof req.body.travelPreferences === 'string'
@@ -97,7 +90,6 @@ const signup = async (req, res, next) => {
                     : req.body.travelPreferences;
             } catch (error) {
                 console.error('Error parsing travel preferences:', error);
-                // Use defaults if parsing fails
                 userData.travelPreferences = {
                     budget: 'moderate',
                     pace: 'moderate',
@@ -108,7 +100,6 @@ const signup = async (req, res, next) => {
             }
         }
 
-        // Handle languages
         if (req.body.languages) {
             try {
                 userData.languages = typeof req.body.languages === 'string'
@@ -122,16 +113,13 @@ const signup = async (req, res, next) => {
 
         console.log('Creating user with data:', userData);
 
-        // Create user
         const newUser = await User.create(userData);
 
-        // Generate token and send response
         createSendToken(newUser, 201, res);
 
     } catch (error) {
         console.error('User creation error:', error);
         
-        // Handle duplicate key error
         if (error.code === 11000) {
             return res.status(400).json({
                 status: 'fail',
@@ -139,7 +127,6 @@ const signup = async (req, res, next) => {
             });
         }
         
-        // Handle validation errors
         if (error.name === 'ValidationError') {
             const validationErrors = Object.values(error.errors).map(err => err.message);
             return res.status(400).json({
@@ -161,7 +148,6 @@ const login = async (req, res, next) => {
 
         console.log('Login attempt for email:', email);
 
-        // 1) Check if email and password exist
         if (!email || !password) {
             return res.status(400).json({
                 status: 'fail',
@@ -169,7 +155,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return res.status(400).json({
@@ -178,7 +163,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // 2) Check if user exists && password is correct
         const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
 
         if (!user) {
@@ -188,7 +172,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Check if account is active
         if (!user.active) {
             return res.status(401).json({
                 status: 'fail',
@@ -196,7 +179,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Check if account is locked
         if (user.lockUntil && user.lockUntil > Date.now()) {
             const remainingTime = Math.ceil((user.lockUntil - Date.now()) / 60000);
             return res.status(423).json({
@@ -205,14 +187,11 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Check password
         const isPasswordCorrect = await user.correctPassword(password, user.password);
 
         if (!isPasswordCorrect) {
-            // Increment login attempts
             user.loginAttempts = (user.loginAttempts || 0) + 1;
             
-            // Lock account after 5 failed attempts
             if (user.loginAttempts >= 5) {
                 user.lockUntil = Date.now() + 5 * 60 * 1000; // 5 minutes
             }
@@ -228,7 +207,6 @@ const login = async (req, res, next) => {
             });
         }
 
-        // Reset login attempts on successful login
         if (user.loginAttempts > 0 || user.lockUntil) {
             user.loginAttempts = 0;
             user.lockUntil = undefined;
@@ -238,7 +216,6 @@ const login = async (req, res, next) => {
 
         console.log('Login successful for user:', user._id);
 
-        // 3) If everything ok, send token to client
         createSendToken(user, 200, res);
     } catch (error) {
         console.error('Login error:', error);
@@ -267,7 +244,6 @@ const logout = (req, res) => {
 
 const protect = async (req, res, next) => {
     try {
-        // 1) Getting token and check if it's there
         let token;
         if (
             req.headers.authorization &&
@@ -287,10 +263,8 @@ const protect = async (req, res, next) => {
             });
         }
 
-        // 2) Verification token
         const decoded = await promisify(jwt.verify)(token, process.env.JWT_SECRET);
 
-        // 3) Check if user still exists
         const currentUser = await User.findById(decoded.id);
         if (!currentUser) {
             return res.status(401).json({
@@ -299,7 +273,6 @@ const protect = async (req, res, next) => {
             });
         }
 
-        // 4) Check if user is active
         if (!currentUser.active) {
             return res.status(401).json({
                 status: 'fail',
@@ -307,7 +280,6 @@ const protect = async (req, res, next) => {
             });
         }
 
-        // 5) Check if user changed password after the token was issued
         if (currentUser.changedPasswordAfter && currentUser.changedPasswordAfter(decoded.iat)) {
             return res.status(401).json({
                 status: 'fail',
@@ -315,7 +287,6 @@ const protect = async (req, res, next) => {
             });
         }
 
-        // Grant access to protected route
         req.user = currentUser;
         next();
     } catch (error) {
@@ -363,26 +334,20 @@ const forgotPassword = async (req, res) => {
             });
         }
 
-        // 1) Get user based on POSTed email
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
-            // Don't reveal if email exists or not for security
             return res.status(200).json({
                 status: 'success',
                 message: 'If an account with that email exists, a password reset email has been sent.'
             });
         }
 
-        // 2) Generate the random reset token
         const resetToken = user.createPasswordResetToken();
         await user.save({ validateBeforeSave: false });
 
-        // 3) Send it to user's email
         try {
             const resetURL = `${req.protocol}://${req.get('host')}/reset-password/${resetToken}`;
 
-            // Here you would send an email with the reset URL
-            // For now, we'll just return it in the response (remove this in production)
             console.log('Password reset URL:', resetURL);
 
             res.status(200).json({
@@ -427,7 +392,6 @@ const resetPassword = async (req, res) => {
             });
         }
 
-        // 1) Get user based on the token
         const hashedToken = crypto
             .createHash('sha256')
             .update(req.params.token)
@@ -438,7 +402,6 @@ const resetPassword = async (req, res) => {
             passwordResetExpires: { $gt: Date.now() }
         });
 
-        // 2) If token has not expired, and there is user, set the new password
         if (!user) {
             return res.status(400).json({
                 status: 'fail',
@@ -452,9 +415,6 @@ const resetPassword = async (req, res) => {
         user.passwordResetExpires = undefined;
         await user.save();
 
-        // 3) Update changedPasswordAt property for the user (done in pre-save middleware)
-
-        // 4) Log the user in, send JWT
         createSendToken(user, 200, res);
     } catch (error) {
         console.error('Reset password error:', error);
@@ -483,10 +443,8 @@ const updatePassword = async (req, res) => {
             });
         }
 
-        // 1) Get user from collection
         const user = await User.findById(req.user.id).select('+password');
 
-        // 2) Check if POSTed current password is correct
         if (!(await user.correctPassword(currentPassword, user.password))) {
             return res.status(401).json({
                 status: 'fail',
@@ -494,12 +452,10 @@ const updatePassword = async (req, res) => {
             });
         }
 
-        // 3) If so, update password
         user.password = newPassword;
         user.passwordConfirm = passwordConfirm;
         await user.save();
 
-        // 4) Log user in, send JWT
         createSendToken(user, 200, res);
     } catch (error) {
         console.error('Update password error:', error);
@@ -514,7 +470,6 @@ const verifyEmail = async (req, res) => {
     try {
         const { token } = req.params;
 
-        // Find user with verification token
         const user = await User.findOne({
             emailVerificationToken: token,
             emailVerificationExpires: { $gt: Date.now() }
@@ -527,7 +482,6 @@ const verifyEmail = async (req, res) => {
             });
         }
 
-        // Update user verification status
         user.verified = true;
         user.emailVerificationToken = undefined;
         user.emailVerificationExpires = undefined;
@@ -565,11 +519,9 @@ const resendVerification = async (req, res) => {
             });
         }
 
-        // Generate new verification token
         const verifyToken = user.createEmailVerificationToken();
         await user.save({ validateBeforeSave: false });
 
-        // Here you would send verification email
         console.log('Verification token:', verifyToken);
 
         res.status(200).json({
@@ -587,7 +539,6 @@ const resendVerification = async (req, res) => {
 
 const checkAuth = async (req, res) => {
     try {
-        // The protect middleware already validated the token and set req.user
         res.status(200).json({
             status: 'success',
             data: {
@@ -605,7 +556,6 @@ const checkAuth = async (req, res) => {
 
 const refreshToken = async (req, res) => {
     try {
-        // The protect middleware already validated the token and set req.user
         createSendToken(req.user, 200, res);
     } catch (error) {
         console.error('Refresh token error:', error);
