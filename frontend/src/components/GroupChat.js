@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -18,75 +18,94 @@ import { selectUser } from '../store/slices/authSlice';
 const GroupChat = () => {
     const { groupId } = useParams();
     const currentUser = useSelector(selectUser);
-    
+
+    // ALL HOOKS MUST BE CALLED FIRST - BEFORE ANY CONDITIONAL LOGIC
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [participants, setParticipants] = useState([]);
     const [showTripDetails, setShowTripDetails] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
-    const [tripDetails] = useState({
-        destination: 'Paris, France',
-        dates: 'June 15-30, 2024',
-        budget: '€2000-3000',
+    const [groupName, setGroupName] = useState('');
+    const [tripDetails, setTripDetails] = useState({
+        destination: '',
+        dates: '',
+        budget: '',
         activities: []
     });
-
+    const [error, setError] = useState(null);
     const messagesEndRef = useRef(null);
 
-    useEffect(() => {
-        // Load group data and messages
-        loadGroupData();
-        
-        // Socket event listeners
-        socketService.on('groupMessage', handleNewMessage);
-        socketService.on('participantJoined', handleParticipantJoined);
-        socketService.on('participantLeft', handleParticipantLeft);
-
-        return () => {
-            socketService.socket?.off('groupMessage', handleNewMessage);
-            socketService.socket?.off('participantJoined', handleParticipantJoined);
-            socketService.socket?.off('participantLeft', handleParticipantLeft);
-        };
-    }, [groupId]);
-
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
+    // Fetch group info and messages
     const loadGroupData = async () => {
         try {
             setIsLoading(true);
-            // Load group messages and participants
-            // This would typically be an API call
-            setMessages([
-                {
-                    id: 1,
-                    senderId: 'user1',
-                    senderName: 'John Doe',
-                    content: 'Hey everyone! Excited about our trip!',
-                    timestamp: new Date(Date.now() - 3600000).toISOString()
+            setError(null);
+
+            const groupRes = await fetch(`${process.env.REACT_APP_API_URL}/groups/${groupId}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
                 },
-                {
-                    id: 2,
-                    senderId: 'user2',
-                    senderName: 'Jane Smith',
-                    content: 'Me too! Has everyone booked their flights?',
-                    timestamp: new Date(Date.now() - 1800000).toISOString()
-                }
-            ]);
-            setParticipants([
-                { id: 'user1', name: 'John Doe', avatar: 'https://via.placeholder.com/40' },
-                { id: 'user2', name: 'Jane Smith', avatar: 'https://via.placeholder.com/40' }
-            ]);
+                credentials: 'include'
+            });
+            if (!groupRes.ok) throw new Error('Failed to fetch group');
+            const groupData = await groupRes.json();
+            const group = groupData.data.group;
+
+            const msgRes = await fetch(`${process.env.REACT_APP_API_URL}/groups/${groupId}/messages`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include'
+            });
+            if (!msgRes.ok) throw new Error('Failed to fetch messages');
+            const msgData = await msgRes.json();
+
+            setMessages(
+                (msgData.data.messages || []).map(msg => ({
+                    id: msg._id,
+                    senderId: msg.sender._id,
+                    senderName: msg.sender.name,
+                    content: msg.content,
+                    timestamp: msg.createdAt
+                }))
+            );
+            setParticipants(
+                (group.members || []).map(m => ({
+                    id: m.user._id,
+                    name: m.user.name,
+                    avatar: m.user.profilePicture || 'https://via.placeholder.com/40'
+                }))
+            );
+            setTripDetails({
+                destination: group.travelDetails?.destination || '',
+                dates: group.travelDetails?.startDate && group.travelDetails?.endDate
+                    ? `${new Date(group.travelDetails.startDate).toLocaleDateString()} - ${new Date(group.travelDetails.endDate).toLocaleDateString()}`
+                    : '',
+                budget: group.travelDetails?.budget || '',
+                activities: group.travelDetails?.activities || []
+            });
+            setGroupName(group.name);
         } catch (error) {
-            console.error('Failed to load group data:', error);
+            setError(error.message || 'Failed to load group data');
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleNewMessage = (message) => {
-        setMessages(prev => [...prev, message]);
+    // Socket handlers (optional, for real-time updates)
+    const handleNewMessage = (msg) => {
+        setMessages(prev => [
+            ...prev,
+            {
+                id: msg._id,
+                senderId: msg.sender._id,
+                senderName: msg.sender.name,
+                content: msg.content,
+                timestamp: msg.createdAt
+            }
+        ]);
     };
 
     const handleParticipantJoined = (participant) => {
@@ -101,11 +120,31 @@ const GroupChat = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    const handleSendMessage = (e) => {
+    // Send message via API (and optionally via socket)
+    const handleSendMessage = async (e) => {
         e.preventDefault();
         if (!message.trim()) return;
 
-        socketService.sendGroupMessage(groupId, message.trim());
+        // Optionally send via socket
+        if (socketService.sendGroupMessage) {
+            socketService.sendGroupMessage(groupId, message.trim());
+        }
+
+        try {
+            await fetch(`${process.env.REACT_APP_API_URL}/groups/${groupId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include',
+                body: JSON.stringify({ content: message.trim() })
+            });
+            loadGroupData(); // reload messages
+        } catch (err) {
+            // Optionally show error
+        }
+
         setMessage('');
     };
 
@@ -116,10 +155,44 @@ const GroupChat = () => {
         });
     };
 
+    useEffect(() => {
+        if (groupId && groupId !== 'undefined') {
+            loadGroupData();
+        }
+
+        socketService.on('groupMessage', handleNewMessage);
+        socketService.on('participantJoined', handleParticipantJoined);
+        socketService.on('participantLeft', handleParticipantLeft);
+
+        return () => {
+            socketService.socket?.off('groupMessage', handleNewMessage);
+            socketService.socket?.off('participantJoined', handleParticipantJoined);
+            socketService.socket?.off('participantLeft', handleParticipantLeft);
+        };
+        // eslint-disable-next-line
+    }, [groupId]);
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    // NOW DO CONDITIONAL LOGIC AFTER ALL HOOKS
+    if (!groupId || groupId === 'undefined') {
+        return <Navigate to="/app/groups" />;
+    }
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center h-screen">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex items-center justify-center h-screen">
+                <div className="text-red-600 dark:text-red-400">{error}</div>
             </div>
         );
     }
@@ -139,7 +212,7 @@ const GroupChat = () => {
                         </div>
                         <div>
                             <h2 className="font-semibold text-gray-900 dark:text-white">
-                                Paris Trip Group
+                                {groupName}
                             </h2>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
                                 {participants.length} participants
@@ -265,7 +338,7 @@ const GroupChat = () => {
                                         <h4 className="font-medium">Destination</h4>
                                     </div>
                                     <p className="text-gray-600 dark:text-gray-300">
-                                        {tripDetails.destination}
+                                        {tripDetails.destination || <span className="italic text-gray-400">Not set</span>}
                                     </p>
                                 </div>
 
@@ -275,7 +348,7 @@ const GroupChat = () => {
                                         <h4 className="font-medium">Dates</h4>
                                     </div>
                                     <p className="text-gray-600 dark:text-gray-300">
-                                        {tripDetails.dates}
+                                        {tripDetails.dates || <span className="italic text-gray-400">Not set</span>}
                                     </p>
                                 </div>
 
@@ -285,7 +358,7 @@ const GroupChat = () => {
                                         <h4 className="font-medium">Budget</h4>
                                     </div>
                                     <p className="text-gray-600 dark:text-gray-300">
-                                        {tripDetails.budget}
+                                        {tripDetails.budget || <span className="italic text-gray-400">Not set</span>}
                                     </p>
                                 </div>
 

@@ -1,21 +1,27 @@
 const { AppError } = require('./errorHandler');
 const validator = require('validator');
 
-// Validation middleware factory
 const createValidation = (schema) => {
     return (req, res, next) => {
         const validationErrors = [];
+        const body = req.body;
 
         Object.keys(schema).forEach(field => {
-            const value = req.body[field];
+            const keys = field.split('.');
+            let value = body;
+            for (const k of keys) {
+                value = value ? value[k] : undefined;
+            }
             const rules = schema[field];
 
-            if (rules.required && !value) {
+            let isRequired = typeof rules.required === 'function' ? rules.required(body) : rules.required;
+
+            if (isRequired && (value === undefined || value === null || value === '')) {
                 validationErrors.push(`${field} is required`);
                 return;
             }
 
-            if (value) {
+            if (value !== undefined && value !== null && value !== '') {
                 if (rules.type === 'email' && !validator.isEmail(value)) {
                     validationErrors.push(`${field} must be a valid email`);
                 }
@@ -37,7 +43,7 @@ const createValidation = (schema) => {
                 }
 
                 if (rules.custom) {
-                    const customError = rules.custom(value);
+                    const customError = rules.custom(value, body);
                     if (customError) validationErrors.push(customError);
                 }
             }
@@ -51,7 +57,6 @@ const createValidation = (schema) => {
     };
 };
 
-// Predefined validation schemas
 const schemas = {
     registration: {
         name: {
@@ -155,12 +160,11 @@ const schemas = {
     }
 };
 
-// Export validation middlewares
 module.exports = {
     validateRegistration: createValidation(schemas.registration),
     validateLogin: createValidation(schemas.login),
     validateUpdateProfile: createValidation(schemas.updateProfile),
     validateUpdatePassword: createValidation(schemas.updatePassword),
     validateCreateJournal: createValidation(schemas.createJournal),
-    createValidation // Export factory function for custom schemas
+    createValidation
 };

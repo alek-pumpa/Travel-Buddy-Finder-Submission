@@ -49,21 +49,29 @@ router.post('/',
     createValidation(createGroupSchema),
     async (req, res, next) => {
         try {
+            const { members, ...groupData } = req.body;
+            
+            const allMembers = Array.from(new Set([
+                ...(members || []),
+                req.user._id.toString()
+            ]));
+
             const group = await Group.create({
-                ...req.body,
+                ...groupData,
                 creator: req.user._id,
-                members: [{
-                    user: req.user._id,
-                    role: 'admin',
+                members: allMembers.map(memberId => ({
+                    user: memberId,
+                    role: memberId === req.user._id.toString() ? 'admin' : 'member',
                     status: 'active'
-                }]
+                }))
             });
+
+            await group.populate('members.user', 'name profilePicture');
+            await group.populate('creator', 'name profilePicture');
 
             res.status(201).json({
                 status: 'success',
-                data: {
-                    group
-                }
+                data: { group }
             });
         } catch (error) {
             next(error);
@@ -73,42 +81,17 @@ router.post('/',
 
 router.get('/', protect, async (req, res, next) => {
     try {
-        const {
-            type,
-            destination,
-            startDate,
-            budget,
-            query,
-            page = 1,
-            limit = 10
-        } = req.query;
-
-        const filters = {};
-        if (type) filters.type = type;
-        if (destination) filters['travelDetails.destination'] = { $regex: destination, $options: 'i' };
-        if (startDate) filters['travelDetails.startDate'] = { $gte: new Date(startDate) };
-        if (budget) filters['travelDetails.budget'] = budget;
-
-        const groups = await Group.find(filters)
-            .populate('creator', 'name profilePicture')
-            .populate('members.user', 'name profilePicture')
-            .skip((page - 1) * limit)
-            .limit(limit)
-            .sort('-lastActivity');
-
-        const total = await Group.countDocuments(filters);
+        const groups = await Group.find({
+            'members.user': req.user._id,
+            'members.status': 'active'
+        })
+        .populate('members.user', 'name profilePicture')
+        .populate('creator', 'name profilePicture')
+        .sort({ updatedAt: -1 });
 
         res.status(200).json({
             status: 'success',
-            results: groups.length,
-            data: {
-                groups,
-                pagination: {
-                    page: parseInt(page),
-                    pages: Math.ceil(total / limit),
-                    total
-                }
-            }
+            data: { groups }
         });
     } catch (error) {
         next(error);
@@ -367,8 +350,10 @@ router.post('/:id/messages', protect, async (req, res, next) => {
         const message = await Message.create({
             group: group._id,
             sender: req.user._id,
-            content
+            content: content.trim()
         });
+
+        await message.populate('sender', 'name profilePicture');
 
         res.status(201).json({
             status: 'success',

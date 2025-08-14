@@ -4,7 +4,16 @@ const messageSchema = new mongoose.Schema({
     conversation: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Conversation',
-        required: [true, 'Message must belong to a conversation']
+        required: function() {
+            return !this.group;
+        }
+    },
+    group: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Group',
+        required: function() {
+            return !this.conversation; 
+        }
     },
     sender: {
         type: mongoose.Schema.Types.ObjectId,
@@ -47,8 +56,18 @@ const messageSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Indexes
+messageSchema.pre('validate', function(next) {
+    if (!this.conversation && !this.group) {
+        next(new Error('Message must belong to either a conversation or a group'));
+    } else if (this.conversation && this.group) {
+        next(new Error('Message cannot belong to both a conversation and a group'));
+    } else {
+        next();
+    }
+});
+
 messageSchema.index({ conversation: 1, createdAt: -1 });
+messageSchema.index({ group: 1, createdAt: -1 });
 messageSchema.index({ sender: 1 });
 
 const Message = mongoose.model('Message', messageSchema);

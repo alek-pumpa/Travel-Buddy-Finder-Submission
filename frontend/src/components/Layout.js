@@ -13,7 +13,6 @@ const Layout = () => {
     const { darkMode } = useSelector(selectSettings);
 
     useEffect(() => {
-        // Set dark mode class on document
         if (darkMode) {
             document.documentElement.classList.add('dark');
         } else {
@@ -22,19 +21,14 @@ const Layout = () => {
     }, [darkMode]);
 
     useEffect(() => {
-        // Connect socket when authenticated
         if (isAuthenticated) {
             socketService.connect();
         }
-        // Don't disconnect on unmount as other components might need the socket
-        // Only disconnect when user logs out
     }, [isAuthenticated]);
 
-    // Loading states
     const [isLoading, setIsLoading] = React.useState(true);
 
     useEffect(() => {
-        // Simulate initial loading
         const timer = setTimeout(() => {
             setIsLoading(false);
         }, 1000);
@@ -70,9 +64,9 @@ const Layout = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.2 }}
-                    className={`${isAuthenticated ? 'pt-16 pb-16 md:pb-0 md:pl-64' : ''}`}
+                    className={`${isAuthenticated ? 'pt-16 pb-16 md:pb-0' : ''}`}
                 >
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                         <ErrorBoundary>
                             <Outlet />
                         </ErrorBoundary>
@@ -90,7 +84,6 @@ const Layout = () => {
     );
 };
 
-// Error Boundary Component
 class ErrorBoundary extends React.Component {
     constructor(props) {
         super(props);

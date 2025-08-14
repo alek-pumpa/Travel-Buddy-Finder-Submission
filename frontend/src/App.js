@@ -32,6 +32,7 @@ import Matches from './components/Matches';
 import ViewUserProfile from './components/UserProfile';
 import Messages from './components/Messages';
 import MessageThread from './components/MessageThread';
+import GroupList from './components/GroupList';
 
 
 const ProtectedRoute = ({ children }) => {
@@ -198,7 +199,6 @@ const AppContent = () => {
                             <Route path="swipe" element={<SwipeToMatch />} />
                             <Route path="matches" element={<Matches />} />
                             <Route path="chat" element={<Navigate to="/app/messages" replace />} />
-                            <Route path="groups" element={<GroupChat />} />
                             <Route path="marketplace" element={<MarketplacePage />} />
                             <Route path="events" element={<EventsPage />} />
                             <Route path="forum" element={<ForumPage />} />
@@ -211,6 +211,9 @@ const AppContent = () => {
                             <Route path="profile/:userId" element={<ViewUserProfile />} />
                             <Route path="messages" element={<Messages />} />
                             <Route path="messages/:conversationId" element={<MessageThread />} />
+                            <Route path="/app/groups" element={<GroupList />} />
+                            <Route path="/app/groups/:groupId" element={<GroupChat />} />
+                            <Route path="groups" element={<GroupChat />} />
                         </Route>
                         
                         {/* 404 page */}

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux';
+import { selectUser } from '../store/slices/authSlice';
 
 const Messages = () => {
     const navigate = useNavigate();
@@ -9,7 +11,7 @@ const Messages = () => {
     const [conversations, setConversations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-
+    const currentUser = useSelector(selectUser);
     const [showGroupModal, setShowGroupModal] = useState(false);
     const [groupName, setGroupName] = useState('');
     const [selectedUserIds, setSelectedUserIds] = useState([]);
@@ -115,7 +117,7 @@ const Messages = () => {
             const groupBody = {
                 name: groupName,
                 type: 'chat',
-                members: Array.from(new Set([...selectedUserIds, localStorage.getItem('userId')]))
+                members: Array.from(new Set([...selectedUserIds, currentUser.id]))
             };
             const response = await fetch(`${process.env.REACT_APP_API_URL}/groups`, {
                 method: 'POST',
