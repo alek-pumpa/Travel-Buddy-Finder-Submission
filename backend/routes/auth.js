@@ -54,24 +54,24 @@ const verifyAndGetUser = async (req, includePassword = false) => {
 };
 
 const createSendToken = (user, statusCode, res) => {
-    const token = jwt.sign(
-        { id: user._id },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN }
-    );
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    });
 
-    user.password = undefined;
+    // Fix: Use proper Date object for cookie expiration
+    const cookieExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    res.cookie('jwt', token, {
-        expires: new Date(
-            Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
-        ),
+    const cookieOptions = {
+        expires: cookieExpires, // Use Date object, not string
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        signed: true
-    });
+        sameSite: 'lax'
+    };
+
+    res.cookie('jwt', token, cookieOptions);
+
+    // Remove password from output
+    user.password = undefined;
 
     res.status(statusCode).json({
         status: 'success',
@@ -295,6 +295,15 @@ router.post('/refresh-token', async (req, res, next) => {
     } catch (error) {
         next(error);
     }
+});
+
+router.get('/health', (req, res) => {
+    res.status(200).json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        service: 'travel-buddy-backend'
+    });
 });
 
 router.get('/me', async (req, res, next) => {

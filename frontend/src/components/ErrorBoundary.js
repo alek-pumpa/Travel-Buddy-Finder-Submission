@@ -14,24 +14,19 @@ class ErrorBoundary extends React.Component {
     }
 
     static getDerivedStateFromError(error) {
-        // Update state so the next render will show the fallback UI
         return { hasError: true, error };
     }
 
     componentDidCatch(error, errorInfo) {
-        // Log the error to an error reporting service
         console.error('Error caught by ErrorBoundary:', error, errorInfo);
         this.setState({
             errorInfo,
             errorCount: this.state.errorCount + 1
         });
 
-        // You could send this to your error reporting service here
-        // Example: Sentry.captureException(error);
     }
 
     handleRetry = () => {
-        // Reset the error state and attempt to re-render
         this.setState({
             hasError: false,
             error: null,
@@ -40,13 +35,11 @@ class ErrorBoundary extends React.Component {
     };
 
     handleReload = () => {
-        // Force a page reload
         window.location.reload();
     };
 
     render() {
         if (this.state.hasError) {
-            // Check if we've tried to recover too many times
             if (this.state.errorCount >= 3) {
                 return (
                     <div className="min-h-[50vh] flex items-center justify-center p-4">
@@ -96,7 +89,6 @@ class ErrorBoundary extends React.Component {
                 );
             }
 
-            // Show a less severe error message for the first few attempts
             return (
                 <div className="min-h-[50vh] flex items-center justify-center p-4">
                     <motion.div

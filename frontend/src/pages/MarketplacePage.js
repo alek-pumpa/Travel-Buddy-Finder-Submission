@@ -26,6 +26,10 @@ const MarketplacePage = () => {
         location: ''
     });
 
+    // NEW: Image upload states
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
+
     const categories = ['Electronics', 'Outdoor Gear', 'Clothing', 'Books', 'Accessories', 'Other'];
     const conditions = ['New', 'Like New', 'Good', 'Fair', 'Poor'];
 
@@ -62,6 +66,40 @@ const MarketplacePage = () => {
         }
     };
 
+
+    const getImageUrl = (imagePath) => {
+        if (!imagePath) return null;
+        if (imagePath.startsWith('http')) return imagePath;
+    
+        // Remove /api from the base URL for static files
+        const baseUrl = process.env.REACT_APP_API_URL.replace('/api', '');
+        return `${baseUrl}${imagePath}`;
+    };
+
+    // NEW: Handle image selection
+    const handleImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // Check file size (10MB limit)
+            if (file.size > 10 * 1024 * 1024) {
+                toast.error('Image must be smaller than 10MB');
+                return;
+            }
+            
+            setSelectedImage(file);
+            // Create preview
+            const reader = new FileReader();
+            reader.onload = (e) => setImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        }
+    };
+
+    // NEW: Remove selected image
+    const removeImage = () => {
+        setSelectedImage(null);
+        setImagePreview(null);
+    };
+
     const parseLocation = (locationStr) => {
         if (!locationStr) {
             return {
@@ -81,10 +119,10 @@ const MarketplacePage = () => {
     };
 
     const handleContactSeller = (sellerId) => {
-     // Optionally: create a conversation via API here
         navigate(`/app/messages?seller=${sellerId}`);
-        };
+    };
 
+    // UPDATED: Handle form submission with image upload
     const handleCreateListing = async (e) => {
         e.preventDefault();
 
@@ -98,20 +136,28 @@ const MarketplacePage = () => {
         try {
             const geoLocation = parseLocation(newListing.location);
 
-            const listingToSend = {
-                ...newListing,
-                price: parseFloat(newListing.price),
-                location: geoLocation
-            };
+            // Use FormData for file upload
+            const formData = new FormData();
+            formData.append('title', newListing.title);
+            formData.append('description', newListing.description);
+            formData.append('price', newListing.price);
+            formData.append('category', newListing.category);
+            formData.append('condition', newListing.condition);
+            formData.append('location', JSON.stringify(geoLocation));
+            
+            // Add image if selected
+            if (selectedImage) {
+                formData.append('image', selectedImage);
+            }
 
             const response = await fetch(`${process.env.REACT_APP_API_URL}/marketplace/listings`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    // DON'T set Content-Type for FormData
                 },
                 credentials: 'include',
-                body: JSON.stringify(listingToSend)
+                body: formData
             });
 
             if (!response.ok) {
@@ -120,6 +166,8 @@ const MarketplacePage = () => {
 
             const data = await response.json();
             setListings(prev => [data.data, ...prev]);
+            
+            // Reset form
             setNewListing({
                 title: '',
                 description: '',
@@ -128,6 +176,8 @@ const MarketplacePage = () => {
                 condition: '',
                 location: ''
             });
+            setSelectedImage(null);
+            setImagePreview(null);
             setShowNewListing(false);
             toast.success('Listing created successfully!');
         } catch (error) {
@@ -241,6 +291,52 @@ const MarketplacePage = () => {
                                 Create New Listing
                             </h2>
                             <form onSubmit={handleCreateListing} className="space-y-4">
+                                {/* NEW: Image Upload Section */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                        Product Image
+                                    </label>
+                                    <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+                                        <div className="space-y-1 text-center">
+                                            {imagePreview ? (
+                                                <div className="relative">
+                                                    <img 
+                                                        src={imagePreview} 
+                                                        alt="Preview" 
+                                                        className="mx-auto h-32 w-32 object-cover rounded-lg" 
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={removeImage}
+                                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 text-xs hover:bg-red-600"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            )}
+                                            <div className="flex text-sm text-gray-600 dark:text-gray-400">
+                                                <label htmlFor="file-upload" className="relative cursor-pointer bg-white dark:bg-gray-800 rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                                    <span>{imagePreview ? 'Change image' : 'Upload a file'}</span>
+                                                    <input
+                                                        id="file-upload"
+                                                        name="file-upload"
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="sr-only"
+                                                        onChange={handleImageSelect}
+                                                    />
+                                                </label>
+                                                <p className="pl-1">or drag and drop</p>
+                                            </div>
+                                            <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         Title *
@@ -328,7 +424,11 @@ const MarketplacePage = () => {
                                 <div className="flex justify-end space-x-4 pt-4">
                                     <button
                                         type="button"
-                                        onClick={() => setShowNewListing(false)}
+                                        onClick={() => {
+                                            setShowNewListing(false);
+                                            setSelectedImage(null);
+                                            setImagePreview(null);
+                                        }}
                                         className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
                                         disabled={submitting}
                                     >
@@ -374,10 +474,23 @@ const MarketplacePage = () => {
                                 transition={{ delay: index * 0.1 }}
                                 className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                             >
+                                {/* UPDATED: Display uploaded image or placeholder */}
                                 <div className="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                                    <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
+                                    {listing.image ? (
+                                        <img 
+                                            src={getImageUrl(listing.image)}
+                                            alt={listing.title}
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                console.log('Image failed to load:', e.target.src);
+                                                e.target.style.display = 'none';
+                                            }}
+                                        />
+                                    ) : (
+                                        <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    )}
                                 </div>
                                 
                                 <div className="p-4">

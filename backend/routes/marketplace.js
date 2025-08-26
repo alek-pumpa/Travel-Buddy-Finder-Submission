@@ -1,62 +1,65 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 const { protect } = require('../middleware/auth');
 const MarketplaceListing = require('../models/MarketplaceListing');
 
-// Mock data for now
-const mockListings = [
-    {
-        _id: '1',
-        title: 'DSLR Camera - Perfect for Travel Photography',
-        description: 'Canon EOS 90D with 18-55mm lens. Great condition, perfect for capturing your travel memories.',
-        price: 450,
-        category: 'Electronics',
-        condition: 'Like New',
-        location: 'New York, NY',
-        seller: {
-            _id: 'user1',
-            name: 'John Doe',
-            rating: 4.8
-        },
-        images: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, '../public/uploads/marketplace');
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
     },
-    {
-        _id: '2',
-        title: 'Hiking Backpack - 65L',
-        description: 'Osprey Atmos 65L hiking backpack. Used for one season, excellent condition.',
-        price: 180,
-        category: 'Outdoor Gear',
-        condition: 'Used',
-        location: 'Los Angeles, CA',
-        seller: {
-            _id: 'user2',
-            name: 'Jane Smith',
-            rating: 4.9
-        },
-        images: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
-    },
-    {
-        _id: '3',
-        title: 'Travel Guidebooks - Europe Collection',
-        description: 'Collection of Lonely Planet guidebooks for European countries. Slightly used.',
-        price: 25,
-        category: 'Books',
-        condition: 'Good',
-        location: 'Chicago, IL',
-        seller: {
-            _id: 'user3',
-            name: 'Mike Johnson',
-            rating: 4.7
-        },
-        images: [],
-        createdAt: new Date().toISOString(),
-        status: 'available'
+    filename: (req, file, cb) => {
+        // Create unique filename: fieldname-timestamp-randomnumber.extension
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
-];
+});
+
+// File filter to only allow images
+const fileFilter = (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+    } else {
+        cb(new Error('Only image files are allowed'), false);
+    }
+};
+
+// Configure multer
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
+    fileFilter: fileFilter
+});
+
+// Error handling middleware for multer
+const handleMulterError = (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({
+                status: 'error',
+                message: 'File too large. Maximum size is 10MB.'
+            });
+        }
+    }
+    if (err.message === 'Only image files are allowed') {
+        return res.status(400).json({
+            status: 'error',
+            message: 'Only image files are allowed.'
+        });
+    }
+    next(err);
+};
 
 // Get all listings
 router.get('/listings', async (req, res) => {
@@ -116,31 +119,61 @@ router.get('/listings/:id', async (req, res) => {
     }
 });
 
-// Create new listing (protected route)
-router.post('/listings', protect, async (req, res) => {
+// Create new listing (protected route) - WITH IMAGE UPLOAD
+router.post('/listings', protect, upload.single('image'), handleMulterError, async (req, res) => {
     try {
-        const { title, description, price, category, condition, location, images } = req.body;
+        const { title, description, price, category, condition, location } = req.body;
 
-        const geoLocation = location && location.coordinates
-            ? {
-                type: 'Point',
-                coordinates: location.coordinates,
-                address: location.address || '',
-                city: location.city || '',
-                country: location.country || ''
+        // Validate required fields
+        if (!title || !description || !price) {
+            return res.status(400).json({
+                status: 'error',
+                message: 'Title, description, and price are required'
+            });
+        }
+
+        // Parse location if it's a string (from frontend)
+        let geoLocation;
+        if (location) {
+            try {
+                const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
+                geoLocation = {
+                    type: 'Point',
+                    coordinates: parsedLocation.coordinates || [0, 0],
+                    city: parsedLocation.city || '',
+                    country: parsedLocation.country || ''
+                };
+            } catch (err) {
+                // If parsing fails, create a basic location object
+                geoLocation = {
+                    type: 'Point',
+                    coordinates: [0, 0],
+                    city: '',
+                    country: ''
+                };
             }
-            : undefined;
+        }
 
-        const newListing = await MarketplaceListing.create({
+        // Prepare listing data
+        const listingData = {
             title,
             description,
             price: parseFloat(price),
             category,
             condition,
             location: geoLocation,
-            images: images || [],
             createdBy: req.user._id
-        });
+        };
+
+        // Add image path if file was uploaded
+        if (req.file) {
+            listingData.image = `/uploads/marketplace/${req.file.filename}`;
+        }
+
+        const newListing = await MarketplaceListing.create(listingData);
+
+        // Populate the creator info before sending response
+        await newListing.populate('createdBy', 'name');
 
         res.status(201).json({
             status: 'success',
@@ -148,9 +181,141 @@ router.post('/listings', protect, async (req, res) => {
         });
     } catch (error) {
         console.error('Error creating listing:', error);
+        
+        // Clean up uploaded file if listing creation failed
+        if (req.file) {
+            const filePath = path.join(uploadDir, req.file.filename);
+            fs.unlink(filePath, (err) => {
+                if (err) console.error('Error deleting file:', err);
+            });
+        }
+
         res.status(500).json({
             status: 'error',
             message: 'Failed to create listing'
+        });
+    }
+});
+
+// Update listing (protected route)
+router.put('/listings/:id', protect, upload.single('image'), handleMulterError, async (req, res) => {
+    try {
+        const listing = await MarketplaceListing.findById(req.params.id);
+
+        if (!listing) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Listing not found'
+            });
+        }
+
+        // Check if user owns the listing
+        if (listing.createdBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                status: 'fail',
+                message: 'You can only update your own listings'
+            });
+        }
+
+        const { title, description, price, category, condition, location } = req.body;
+
+        // Update fields
+        if (title) listing.title = title;
+        if (description) listing.description = description;
+        if (price) listing.price = parseFloat(price);
+        if (category) listing.category = category;
+        if (condition) listing.condition = condition;
+        if (location) {
+            try {
+                const parsedLocation = typeof location === 'string' ? JSON.parse(location) : location;
+                listing.location = {
+                    type: 'Point',
+                    coordinates: parsedLocation.coordinates || [0, 0],
+                    city: parsedLocation.city || '',
+                    country: parsedLocation.country || ''
+                };
+            } catch (err) {
+                // Keep existing location if parsing fails
+            }
+        }
+
+        // Handle new image upload
+        if (req.file) {
+            // Delete old image if it exists
+            if (listing.image) {
+                const oldImagePath = path.join(__dirname, '../public', listing.image);
+                fs.unlink(oldImagePath, (err) => {
+                    if (err) console.error('Error deleting old image:', err);
+                });
+            }
+            
+            listing.image = `/uploads/marketplace/${req.file.filename}`;
+        }
+
+        await listing.save();
+        await listing.populate('createdBy', 'name');
+
+        res.status(200).json({
+            status: 'success',
+            data: listing
+        });
+    } catch (error) {
+        console.error('Error updating listing:', error);
+        
+        // Clean up uploaded file if update failed
+        if (req.file) {
+            const filePath = path.join(uploadDir, req.file.filename);
+            fs.unlink(filePath, (err) => {
+                if (err) console.error('Error deleting file:', err);
+            });
+        }
+
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to update listing'
+        });
+    }
+});
+
+// Delete listing (protected route)
+router.delete('/listings/:id', protect, async (req, res) => {
+    try {
+        const listing = await MarketplaceListing.findById(req.params.id);
+
+        if (!listing) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Listing not found'
+            });
+        }
+
+        // Check if user owns the listing
+        if (listing.createdBy.toString() !== req.user._id.toString()) {
+            return res.status(403).json({
+                status: 'fail',
+                message: 'You can only delete your own listings'
+            });
+        }
+
+        // Delete associated image
+        if (listing.image) {
+            const imagePath = path.join(__dirname, '../public', listing.image);
+            fs.unlink(imagePath, (err) => {
+                if (err) console.error('Error deleting image:', err);
+            });
+        }
+
+        await MarketplaceListing.findByIdAndDelete(req.params.id);
+
+        res.status(204).json({
+            status: 'success',
+            data: null
+        });
+    } catch (error) {
+        console.error('Error deleting listing:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to delete listing'
         });
     }
 });

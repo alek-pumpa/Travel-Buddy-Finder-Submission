@@ -23,9 +23,8 @@ const AnomalyDashboard = () => {
 
     useEffect(() => {
         fetchAnomalies();
-        const interval = setInterval(fetchAnomalies, 60000); // Refresh every minute
+        const interval = setInterval(fetchAnomalies, 60000);
 
-        // Subscribe to real-time anomaly updates
         metricsSocket.connect();
         const unsubscribe = metricsSocket.subscribe('anomalyDetected', handleNewAnomaly);
 
@@ -58,7 +57,7 @@ const AnomalyDashboard = () => {
     };
 
     const handleNewAnomaly = (anomaly) => {
-        setAnomalies(prev => [anomaly, ...prev].slice(0, 100)); // Keep last 100 anomalies
+        setAnomalies(prev => [anomaly, ...prev].slice(0, 100));
     };
 
     const getAnomalyColor = (severity) => {

@@ -25,9 +25,8 @@ const ABTestMonitor = () => {
 
     useEffect(() => {
         fetchTestData();
-        const interval = setInterval(fetchTestData, 60000); // Refresh every minute
+        const interval = setInterval(fetchTestData, 60000);
 
-        // Subscribe to real-time updates
         metricsSocket.connect();
         const unsubscribe = metricsSocket.subscribe('abTestUpdates', handleTestUpdate);
 

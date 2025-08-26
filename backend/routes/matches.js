@@ -7,6 +7,7 @@ const MatchService = require('../services/matchService');
 const Swipe = require('../models/Swipe');
 const Match = require('../models/Match');
 const Conversation = require('../models/Conversation');
+const Message = require('../models/Message'); // Added missing import
 
 // Rate limiting configuration
 const matchesLimiter = rateLimit({
@@ -31,93 +32,124 @@ const swipeLimiter = rateLimit({
 // Helper function to get compatible personality types
 function getCompatiblePersonalityTypes(personalityType) {
     const compatibilityMap = {
-        'adventurer': ['flexible', 'cultural', 'adventurer'],
-        'planner': ['relaxed', 'flexible', 'planner'],
-        'cultural': ['adventurer', 'planner', 'cultural'],
-        'relaxed': ['planner', 'flexible', 'relaxed'],
+        'adventurer': ['flexible', 'cultural', 'adventurer', 'planner'],
+        'planner': ['relaxed', 'flexible', 'planner', 'cultural'],
+        'cultural': ['adventurer', 'planner', 'cultural', 'relaxed'],
+        'relaxed': ['planner', 'flexible', 'relaxed', 'adventurer'],
         'flexible': ['adventurer', 'cultural', 'planner', 'relaxed', 'flexible']
     };
-    return compatibilityMap[personalityType] || ['flexible'];
+    return compatibilityMap[personalityType] || ['flexible', 'adventurer', 'planner', 'cultural', 'relaxed'];
 }
 
 // Helper function to get compatible budget ranges
 function getBudgetRanges(budget) {
     const budgetRanges = {
-        'budget': ['budget', 'moderate'],
-        'moderate': ['budget', 'moderate', 'luxury'],
-        'luxury': ['moderate', 'luxury']
+        'low': ['low', 'medium'],
+        'budget': ['low', 'budget', 'medium'],
+        'medium': ['low', 'budget', 'medium', 'high'],
+        'moderate': ['budget', 'medium', 'moderate', 'high'],
+        'high': ['medium', 'moderate', 'high', 'luxury'],
+        'luxury': ['high', 'luxury']
     };
-    return budgetRanges[budget] || [budget];
+    return budgetRanges[budget] || ['low', 'medium', 'high'];
 }
 
 // Helper function to get compatible travel styles
 function getCompatibleTravelStyles(travelStyle) {
     const compatibilityMap = {
-        'solo': ['solo', 'flexible', 'group'],
-        'couple': ['couple', 'flexible', 'group'],
-        'group': ['group', 'flexible'],
-        'family': ['family', 'flexible', 'group'],
-        'flexible': ['solo', 'couple', 'group', 'family', 'flexible']
+        'solo': ['solo', 'flexible', 'group', 'adventure'],
+        'couple': ['couple', 'flexible', 'group', 'relaxation'],
+        'group': ['group', 'flexible', 'solo', 'adventure'],
+        'family': ['family', 'flexible', 'group', 'relaxation'],
+        'adventure': ['adventure', 'solo', 'group', 'flexible'],
+        'relaxation': ['relaxation', 'couple', 'family', 'flexible'],
+        'flexible': ['solo', 'couple', 'group', 'family', 'adventure', 'relaxation', 'flexible']
     };
     return compatibilityMap[travelStyle] || ['flexible'];
 }
 
 // Helper function to calculate match score
 function calculateMatchScore(user1, user2) {
-    let score = 0;
-    const weights = {
-        personalityType: 0.25,
-        travelStyle: 0.20,
-        budget: 0.15,
-        languages: 0.15,
-        activityLevel: 0.15,
-        location: 0.10
-    };
+    let score = 50; // Start with base score
+
+    // Age compatibility (if both have age)
+    if (user1.age && user2.age) {
+        const ageDiff = Math.abs(user1.age - user2.age);
+        if (ageDiff <= 3) score += 20;
+        else if (ageDiff <= 7) score += 15;
+        else if (ageDiff <= 12) score += 10;
+        else if (ageDiff <= 20) score += 5;
+    }
 
     // Personality type compatibility
-    if (user1.personalityType === user2.personalityType) {
-        score += 100 * weights.personalityType;
-    } else if (getCompatiblePersonalityTypes(user1.personalityType).includes(user2.personalityType)) {
-        score += 75 * weights.personalityType;
+    if (user1.personalityType && user2.personalityType) {
+        if (user1.personalityType === user2.personalityType) {
+            score += 15;
+        } else if (getCompatiblePersonalityTypes(user1.personalityType).includes(user2.personalityType)) {
+            score += 10;
+        }
     }
 
-    // Travel style compatibility
-    if (user1.travelPreferences?.travelStyle === user2.travelPreferences?.travelStyle) {
-        score += 100 * weights.travelStyle;
-    } else if (getCompatibleTravelStyles(user1.travelPreferences?.travelStyle).includes(user2.travelPreferences?.travelStyle)) {
-        score += 75 * weights.travelStyle;
+    // Travel preferences compatibility (if both have them)
+    if (user1.travelPreferences && user2.travelPreferences) {
+        // Budget compatibility
+        if (user1.travelPreferences.budget && user2.travelPreferences.budget) {
+            if (user1.travelPreferences.budget === user2.travelPreferences.budget) {
+                score += 15;
+            } else if (getBudgetRanges(user1.travelPreferences.budget).includes(user2.travelPreferences.budget)) {
+                score += 8;
+            }
+        }
+
+        // Travel style compatibility
+        if (user1.travelPreferences.travelStyle && user2.travelPreferences.travelStyle) {
+            if (user1.travelPreferences.travelStyle === user2.travelPreferences.travelStyle) {
+                score += 15;
+            } else if (getCompatibleTravelStyles(user1.travelPreferences.travelStyle).includes(user2.travelPreferences.travelStyle)) {
+                score += 8;
+            }
+        }
+
+        // Destination overlap
+        if (user1.travelPreferences.destinations && user2.travelPreferences.destinations) {
+            const commonDestinations = user1.travelPreferences.destinations.filter(dest =>
+                user2.travelPreferences.destinations.includes(dest)
+            );
+            score += Math.min(15, commonDestinations.length * 5);
+        }
+
+        // Interests overlap
+        if (user1.travelPreferences.interests && user2.travelPreferences.interests) {
+            const commonInterests = user1.travelPreferences.interests.filter(interest =>
+                user2.travelPreferences.interests.includes(interest)
+            );
+            score += Math.min(10, commonInterests.length * 3);
+        }
     }
 
-    // Budget compatibility
-    if (user1.travelPreferences?.budget === user2.travelPreferences?.budget) {
-        score += 100 * weights.budget;
-    } else if (getBudgetRanges(user1.travelPreferences?.budget).includes(user2.travelPreferences?.budget)) {
-        score += 75 * weights.budget;
+    // Bio similarity (simple check)
+    if (user1.bio && user2.bio) {
+        const commonWords = user1.bio.toLowerCase().split(' ')
+            .filter(word => user2.bio.toLowerCase().includes(word) && word.length > 3);
+        score += Math.min(10, commonWords.length * 2);
     }
 
-    // Language compatibility
-    const commonLanguages = user1.languages?.filter(l => user2.languages?.includes(l)) || [];
-    score += Math.min(100, (commonLanguages.length / Math.max(1, user1.languages?.length)) * 100) * weights.languages;
-
-    // Activity level compatibility
-    const activityLevels = ['low', 'moderate', 'high'];
-    const level1 = activityLevels.indexOf(user1.travelPreferences?.activityLevel);
-    const level2 = activityLevels.indexOf(user2.travelPreferences?.activityLevel);
-    if (level1 !== -1 && level2 !== -1) {
-        const levelDiff = Math.abs(level1 - level2);
-        score += (100 - (levelDiff * 33.33)) * weights.activityLevel;
+    // Has profile picture bonus
+    if (user2.profilePicture) {
+        score += 5;
     }
 
-    // Location proximity (if available)
-    if (user1.location?.coordinates && user2.location?.coordinates) {
-        const distance = calculateDistance(
-            user1.location.coordinates,
-            user2.location.coordinates
-        );
-        score += Math.max(0, 100 - (distance / 100)) * weights.location; // Decreases with distance
+    // Active recently bonus
+    if (user2.lastActive && new Date(user2.lastActive) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) {
+        score += 5;
     }
 
-    return Math.round(score);
+    // Has bio bonus
+    if (user2.bio && user2.bio.length > 20) {
+        score += 3;
+    }
+
+    return Math.min(Math.max(score, 15), 100); // Keep between 15-100
 }
 
 // Helper function to calculate distance between coordinates
@@ -133,17 +165,16 @@ function calculateDistance([lon1, lat1], [lon2, lat2]) {
     return R * c;
 }
 
-// Get potential matches
+// Get potential matches - IMPROVED AND FIXED
 router.get('/potential', protect, matchesLimiter, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
-        const lastSwipeDirection = req.query.lastSwipeDirection;
 
-        // Get current user with all necessary fields
-        const currentUser = await User.findById(req.user.id)
-            .select('+travelPreferences +personalityType +languages +location +active +matches +blockedUsers +likes +rejectedMatches')
+        // Get current user with fixed field access
+        const currentUser = await User.findById(req.user.id || req.user._id)
+            .select('name age bio travelPreferences personalityType languages location active lastActive')
             .lean();
 
         if (!currentUser) {
@@ -153,288 +184,202 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
             });
         }
 
-        if (!currentUser.travelPreferences) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Please complete your travel preferences before matching'
-            });
-        }
+        console.log('Current user:', currentUser._id);
 
-        // Validate location data if required
-        if (currentUser.location?.coordinates && 
-            (!Array.isArray(currentUser.location.coordinates) || 
-             currentUser.location.coordinates.length !== 2)) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Invalid location data'
-            });
-        }
+        // Get users that current user has already swiped on
+        const swipedUsers = await Swipe.find({ 
+            $or: [
+                { swiper_id: currentUser._id },
+                { swiper: currentUser._id }
+            ]
+        }).select('swiped_id swiped').lean();
 
-        // Validate pagination parameters
-        if (page < 1 || limit < 1 || limit > 50) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Invalid pagination parameters'
-            });
-        }
+        const swipedUserIds = swipedUsers.map(swipe => 
+            swipe.swiped_id || swipe.swiped
+        ).filter(Boolean);
 
-        // Add error handling for inactive users
-        if (!currentUser.active) {
-            return res.status(403).json({
-                status: 'fail',
-                message: 'Account is currently inactive'
-            });
-        }
+        console.log('Already swiped on:', swipedUserIds.length, 'users');
 
-        // Build filter conditions
-        const filterConditions = {
+        // SIMPLIFIED: Basic filter conditions
+        const basicFilterConditions = {
             _id: { 
                 $ne: currentUser._id,
-                $nin: [
-                    ...(currentUser.matches || []),
-                    ...(currentUser.blockedUsers || []),
-                    ...(currentUser.rejectedMatches || [])
-                ]
-            },
-            active: true
+                $nin: swipedUserIds
+            }
+            // Removed active field requirement - too restrictive
         };
 
-        // Get users that current user has already swiped on (both like and reject)
-        const swipedUsers = await Swipe.find({ 
-            swiper_id: currentUser._id 
-        }).select('swiped_id').lean();
-
-        const swipedUserIds = swipedUsers.map(swipe => swipe.swiped_id);
-
-        // Add swiped users to the exclusion list
-        if (swipedUserIds.length > 0) {
-            filterConditions._id.$nin.push(...swipedUserIds);
-        }
-
-        console.log(`Excluding ${swipedUserIds.length} previously swiped users`);
-
-        // Add blocked users who have blocked the current user
-        const blockedByUsers = await User.find(
-            { blockedUsers: currentUser._id },
-            { _id: 1 }
-        ).lean();
+        let potentialMatches = [];
         
-        if (blockedByUsers.length > 0) {
-            filterConditions._id.$nin.push(...blockedByUsers.map(u => u._id));
-        }
-
-        // Add personality type filtering with validation
-        if (currentUser.personalityType) {
-            const compatibleTypes = getCompatiblePersonalityTypes(currentUser.personalityType);
-            if (!compatibleTypes || compatibleTypes.length === 0) {
-                return res.status(400).json({
-                    status: 'fail',
-                    message: 'Invalid personality type configuration'
-                });
-            }
-            filterConditions.$or = [
-                { personalityType: { $in: compatibleTypes } },
-                { personalityType: 'flexible' }
-            ];
-        }
-
-        // Add budget filtering with validation
-        if (currentUser.travelPreferences?.budget) {
-            const budgetRanges = getBudgetRanges(currentUser.travelPreferences.budget);
-            if (!budgetRanges || budgetRanges.length === 0) {
-                return res.status(400).json({
-                    status: 'fail',
-                    message: 'Invalid budget configuration'
-                });
-            }
-            filterConditions['travelPreferences.budget'] = {
-                $in: budgetRanges
-            };
-        }
-
-        // Add location-based filtering with enhanced validation and dynamic radius
-        if (currentUser.location?.coordinates) {
-            const matchRadius = currentUser.travelPreferences?.matchRadius || 100; // km
-            if (matchRadius < 1 || matchRadius > 20000) {
-                return res.status(400).json({
-                    status: 'fail',
-                    message: 'Invalid match radius. Must be between 1 and 20000 km'
+        // LEVEL 1: Try with travel preferences (if user has them)
+        if (currentUser.travelPreferences && Object.keys(currentUser.travelPreferences).length > 0) {
+            console.log('Trying preference-based matching...');
+            
+            const preferenceConditions = { ...basicFilterConditions };
+            
+            // More lenient preference matching
+            const preferenceFilters = [];
+            
+            if (currentUser.travelPreferences.budget) {
+                const budgetRanges = getBudgetRanges(currentUser.travelPreferences.budget);
+                preferenceFilters.push({
+                    $or: [
+                        { 'travelPreferences.budget': { $in: budgetRanges } },
+                        { 'travelPreferences.budget': { $exists: false } }
+                    ]
                 });
             }
 
-            filterConditions.location = {
-                $geoWithin: {
-                    $centerSphere: [
-                        currentUser.location.coordinates,
-                        matchRadius / 6371 
+            if (currentUser.personalityType) {
+                const compatibleTypes = getCompatiblePersonalityTypes(currentUser.personalityType);
+                preferenceFilters.push({
+                    $or: [
+                        { personalityType: { $in: compatibleTypes } },
+                        { personalityType: { $exists: false } }
+                    ]
+                });
+            }
+
+            if (preferenceFilters.length > 0) {
+                preferenceConditions.$and = preferenceFilters;
+            }
+
+            potentialMatches = await User.find(preferenceConditions)
+                .select('name age bio profilePicture travelPreferences personalityType languages location lastActive')
+                .limit(limit * 3) // Get more to allow for scoring
+                .lean();
+            
+            console.log('Preference matches found:', potentialMatches.length);
+        }
+
+        // LEVEL 2: If not enough matches, try age-based compatibility
+        if (potentialMatches.length < limit) {
+            console.log('Not enough preference matches, trying age-based...');
+            
+            const ageConditions = { ...basicFilterConditions };
+            
+            // Exclude users we already got
+            if (potentialMatches.length > 0) {
+                ageConditions._id.$nin = [
+                    ...ageConditions._id.$nin,
+                    ...potentialMatches.map(u => u._id)
+                ];
+            }
+
+            // Add age filtering if available
+            if (currentUser.age) {
+                const ageRange = 15; // Increased age range
+                ageConditions.age = {
+                    $gte: Math.max(18, currentUser.age - ageRange),
+                    $lte: currentUser.age + ageRange
+                };
+            }
+
+            const ageMatches = await User.find(ageConditions)
+                .select('name age bio profilePicture travelPreferences personalityType languages location lastActive')
+                .limit(limit * 2)
+                .lean();
+
+            potentialMatches = [...potentialMatches, ...ageMatches];
+            console.log('Age-based matches added:', ageMatches.length);
+        }
+
+        // LEVEL 3: If still not enough, get any available users
+        if (potentialMatches.length < limit) {
+            console.log('Still not enough matches, getting any available users...');
+            
+            const anyUserConditions = {
+                _id: { 
+                    $ne: currentUser._id,
+                    $nin: [
+                        ...swipedUserIds,
+                        ...potentialMatches.map(u => u._id)
                     ]
                 }
             };
+
+            const anyMatches = await User.find(anyUserConditions)
+                .select('name age bio profilePicture travelPreferences personalityType languages location lastActive')
+                .limit(limit)
+                .sort({ createdAt: -1 }) // Newest users first
+                .lean();
+
+            potentialMatches = [...potentialMatches, ...anyMatches];
+            console.log('Any user matches added:', anyMatches.length);
         }
 
-        // Add activity level compatibility
-        if (currentUser.travelPreferences?.activityLevel) {
-            const activityLevels = ['low', 'moderate', 'high'];
-            const currentLevel = activityLevels.indexOf(currentUser.travelPreferences.activityLevel);
-            if (currentLevel === -1) {
-                return res.status(400).json({
-                    status: 'fail',
-                    message: 'Invalid activity level'
-                });
-            }
-            
-            // Get adjacent activity levels for compatibility
-            const compatibleLevels = activityLevels.filter((_, index) => 
-                Math.abs(index - currentLevel) <= 1
+        // Remove duplicates and process matches
+        const uniqueMatches = potentialMatches
+            .filter((match, index, self) => 
+                self.findIndex(m => m._id.toString() === match._id.toString()) === index
             );
-            
-            filterConditions['travelPreferences.activityLevel'] = {
-                $in: compatibleLevels
-            };
-        }
 
-        // Add date range compatibility if specified
-        if (currentUser.travelPreferences?.dateRange) {
-            const { start, end } = currentUser.travelPreferences.dateRange;
-            if (start && end) {
-                filterConditions['travelPreferences.dateRange'] = {
-                    $elemMatch: {
-                        start: { $lte: new Date(end) },
-                        end: { $gte: new Date(start) }
-                    }
-                };
-            }
-        }
+        // Process matches and calculate scores
+        const processedMatches = uniqueMatches.map(match => {
+            let distance = null;
+            let matchScore = 50; // Default score
 
-        // Add language compatibility
-        if (currentUser.languages?.length > 0) {
-            filterConditions.languages = {
-                $elemMatch: {
-                    $in: currentUser.languages
-                }
-            };
-        }
-
-        // Add travel style compatibility
-        if (currentUser.travelPreferences?.travelStyle) {
-            const compatibleStyles = getCompatibleTravelStyles(currentUser.travelPreferences.travelStyle);
-            if (!compatibleStyles || compatibleStyles.length === 0) {
-                return res.status(400).json({
-                    status: 'fail',
-                    message: 'Invalid travel style configuration'
-                });
-            }
-            filterConditions['travelPreferences.travelStyle'] = {
-                $in: compatibleStyles
-            };
-        }
-
-        // Add swipe direction based filtering
-        if (lastSwipeDirection === 'right') {
-            filterConditions.matchScore = { $gte: 60 };
-        } else if (lastSwipeDirection === 'left') {
-            filterConditions.matchScore = { $lt: 60 };
-        }
-
-        // Add active within last 30 days filter
-        filterConditions.lastActive = {
-            $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        };
-
-        // Add verification level filter if enabled
-        if (currentUser.travelPreferences?.verifiedMatchesOnly) {
-            filterConditions.verificationLevel = { $gte: 2 };
-        }
-
-        // Use a simpler query first to avoid aggregation pipeline errors
-        const potentialMatches = await User.find(filterConditions)
-            .select('+travelPreferences +personalityType +languages +location')
-            .limit(limit)
-            .skip(skip)
-            .lean();
-
-        // Then process the matches in memory
-        const processedMatches = potentialMatches.map(match => {
             try {
-                // Calculate distance if location data is valid
-                let distance = null;
+                // Calculate distance if both users have location data
                 if (match.location?.coordinates?.length === 2 && 
                     currentUser.location?.coordinates?.length === 2) {
-                    try {
-                        distance = calculateDistance(
-                            match.location.coordinates,
-                            currentUser.location.coordinates
-                        );
-                    } catch (err) {
-                        console.error('Distance calculation error:', err);
-                    }
+                    distance = calculateDistance(
+                        match.location.coordinates,
+                        currentUser.location.coordinates
+                    );
                 }
 
                 // Calculate match score
-                let matchScore = 50; // Default score
-                try {
-                    matchScore = calculateMatchScore(match, currentUser);
-                } catch (err) {
-                    console.error('Match score calculation error:', err);
-                }
-
-                return {
-                    ...match,
-                    distance,
-                    matchScore
-                };
+                matchScore = calculateMatchScore(currentUser, match);
             } catch (err) {
-                console.error('Match processing error:', err);
-                return {
-                    ...match,
-                    distance: null,
-                    matchScore: 50
-                };
+                console.error('Error processing match:', err);
             }
+
+            return {
+                _id: match._id,
+                name: match.name,
+                age: match.age,
+                bio: match.bio,
+                profilePicture: match.profilePicture,
+                travelPreferences: match.travelPreferences,
+                personalityType: match.personalityType,
+                languages: match.languages,
+                distance: distance ? Math.round(distance) : null,
+                matchScore,
+                lastActive: match.lastActive
+            };
         });
 
-        // Sort matches by score and distance
+        // Sort by match score, then by distance
         const sortedMatches = processedMatches.sort((a, b) => {
-            if (a.matchScore === b.matchScore) {
+            if (Math.abs(a.matchScore - b.matchScore) < 5) { // If scores are close
+                if (a.distance === null && b.distance === null) return 0;
                 if (a.distance === null) return 1;
                 if (b.distance === null) return -1;
                 return a.distance - b.distance;
             }
             return b.matchScore - a.matchScore;
         });
-        // Calculate statistics for metadata
-        const scores = sortedMatches.map(m => m.matchScore);
-        const distances = sortedMatches
-            .filter(m => m.distance != null)
-            .map(m => m.distance);
 
-        // Get total count for pagination
-        const totalCount = await User.countDocuments(filterConditions);
+        // Apply pagination
+        const paginatedMatches = sortedMatches.slice(skip, skip + limit);
 
-        // Prepare response
-        const response = {
+        console.log(`Returning ${paginatedMatches.length} matches for user ${currentUser._id}`);
+
+        res.status(200).json({
             status: 'success',
-            results: sortedMatches.length,
+            results: paginatedMatches.length,
             page,
-            data: sortedMatches,
+            totalPages: Math.ceil(sortedMatches.length / limit),
+            data: paginatedMatches,
             metadata: {
-                averageScore: scores.length ? 
-                    Math.round(scores.reduce((acc, score) => acc + score, 0) / scores.length) : 0,
-                scoreRange: scores.length ? {
-                    min: Math.min(...scores),
-                    max: Math.max(...scores)
-                } : null,
-                averageDistance: distances.length ?
-                    Math.round(distances.reduce((acc, dist) => acc + dist, 0) / distances.length) : null,
-                distanceRange: distances.length ? {
-                    min: Math.round(Math.min(...distances)),
-                    max: Math.round(Math.max(...distances))
-                } : null,
-                totalPages: Math.ceil(totalCount / limit)
+                totalFound: sortedMatches.length,
+                averageScore: paginatedMatches.length > 0 ? 
+                    Math.round(paginatedMatches.reduce((acc, m) => acc + m.matchScore, 0) / paginatedMatches.length) : 0,
+                hasMore: skip + limit < sortedMatches.length
             }
-        };
+        });
 
-        res.status(200).json(response);
     } catch (error) {
         console.error('Error in potential matches:', error);
         res.status(500).json({
@@ -445,7 +390,7 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
     }
 });
 
-// Record a swipe action
+// Record a swipe action - FIXED
 router.post('/swipe', protect, swipeLimiter, async (req, res) => {
     try {
         const { swipedId, action } = req.body;
@@ -467,19 +412,71 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
             });
         }
 
-        const matchService = new MatchService();
-        const result = await matchService.recordSwipe(req.user.id, swipedId, action);
+        // Check if already swiped
+        const existingSwipe = await Swipe.findOne({
+            $or: [
+                { swiper_id: req.user.id, swiped_id: swipedId },
+                { swiper: req.user.id, swiped: swipedId }
+            ]
+        });
 
-        if (result.isMutualMatch) {
-            // Return enhanced response for mutual match
+        if (existingSwipe) {
+            return res.status(400).json({
+                status: 'fail',
+                message: 'You have already swiped on this user'
+            });
+        }
+
+        // Create swipe record
+        const swipe = await Swipe.create({
+            swiper_id: req.user.id,
+            swiped_id: swipedId,
+            action: action === 'like' ? 'like' : 'reject'
+        });
+
+        // Check for mutual match if it's a like
+        let isMatch = false;
+        let match = null;
+
+        if (action === 'like') {
+            const mutualSwipe = await Swipe.findOne({
+                $or: [
+                    { swiper_id: swipedId, swiped_id: req.user.id, action: 'like' },
+                    { swiper: swipedId, swiped: req.user.id, action: 'like' }
+                ]
+            });
+
+            if (mutualSwipe) {
+                isMatch = true;
+                
+                // Create match record
+                try {
+                    match = await Match.create({
+                        users: [req.user.id, swipedId],
+                        matchedOn: new Date(),
+                        status: 'active',
+                        matchScore: calculateMatchScore(
+                            await User.findById(req.user.id).lean(),
+                            swipedUser.toObject()
+                        )
+                    });
+                    console.log('Match created:', match._id);
+                } catch (matchError) {
+                    console.error('Error creating match:', matchError);
+                    // Continue even if match creation fails
+                }
+            }
+        }
+
+        if (isMatch) {
             res.status(201).json({
                 status: 'success',
                 data: {
-                    swipe: result.swipe,
-                    match: result.match,
+                    swipe,
+                    match,
                     isMutualMatch: true,
                     matchDetails: {
-                        matchScore: result.match.matchScore,
+                        matchScore: match?.matchScore || 50,
                         matchedUser: {
                             id: swipedUser._id,
                             name: swipedUser.name,
@@ -490,16 +487,17 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
                 message: "It's a match! You both liked each other."
             });
         } else {
-            // Return normal response for regular swipe
             res.status(201).json({
                 status: 'success',
                 data: {
-                    swipe: result.swipe,
+                    swipe,
                     isMutualMatch: false
                 }
             });
         }
     } catch (error) {
+        console.error('Error recording swipe:', error);
+        
         if (error.code === 11000) { // Duplicate key error
             return res.status(400).json({
                 status: 'fail',
@@ -515,64 +513,20 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
     }
 });
 
-// Create a match
-router.post('/:userId', protect, swipeLimiter, async (req, res) => {
-    try {
-        const currentUser = await User.findById(req.user.id);
-        const targetUser = await User.findById(req.params.userId);
-
-        if (!targetUser) {
-            return res.status(404).json({
-                status: 'fail',
-                message: 'User not found'
-            });
-        }
-
-        if (currentUser.matches.includes(targetUser._id)) {
-            return res.status(400).json({
-                status: 'fail',
-                message: 'Already matched with this user'
-            });
-        }
-
-        // Create match
-        currentUser.matches.addToSet(targetUser._id);
-        targetUser.matches.addToSet(currentUser._id);
-
-        await Promise.all([
-            currentUser.save(),
-            targetUser.save()
-        ]);
-
-        res.status(200).json({
-            status: 'success',
-            message: 'Match created successfully'
-        });
-
-    } catch (err) {
-        console.error('Error creating match:', err);
-        res.status(500).json({
-            status: 'error',
-            message: 'Error creating match',
-            details: process.env.NODE_ENV === 'development' ? err.message : undefined
-        });
-    }
-});
-
-// Add this route to backend/routes/matches.js
+// Get user's matches - FIXED
 router.get('/my-matches', protect, async (req, res) => {
     try {
-        console.log('Fetching matches for user:', req.user._id);
+        console.log('Fetching matches for user:', req.user.id);
         
         // Find all matches where the current user is involved
         const matches = await Match.find({
-            users: req.user._id,
-            status: 'pending' // or whatever status indicates an active match
+            users: req.user.id,
+            status: { $in: ['active', 'pending'] } // Include both active and pending matches
         })
         .populate({
             path: 'users',
-            select: 'name age bio profilePicture location travelPreferences languages travelStyle',
-            match: { _id: { $ne: req.user._id } } // Exclude current user
+            select: 'name age bio profilePicture location travelPreferences languages personalityType',
+            match: { _id: { $ne: req.user.id } } // Exclude current user
         })
         .sort({ matchedOn: -1 }) // Most recent first
         .lean();
@@ -580,16 +534,17 @@ router.get('/my-matches', protect, async (req, res) => {
         console.log(`Found ${matches.length} matches`);
 
         // Transform the data to include the other user info
-        const transformedMatches = matches.map(match => ({
-            _id: match._id,
-            matchedOn: match.matchedOn,
-            matchScore: match.matchScore,
-            status: match.status,
-            // Get the other user (not the current user)
-            otherUser: match.users.find(user => user._id.toString() !== req.user._id.toString()),
-            // Include original match data if needed
-            originalMatch: match
-        })).filter(match => match.otherUser); // Only include matches where we found the other user
+        const transformedMatches = matches.map(match => {
+            const otherUser = match.users.find(user => user._id.toString() !== req.user.id.toString());
+            
+            return {
+                _id: match._id,
+                matchedOn: match.matchedOn,
+                matchScore: match.matchScore || 50,
+                status: match.status,
+                otherUser: otherUser
+            };
+        }).filter(match => match.otherUser); // Only include matches where we found the other user
 
         console.log('Transformed matches:', transformedMatches.length);
 
@@ -604,20 +559,21 @@ router.get('/my-matches', protect, async (req, res) => {
         res.status(500).json({
             status: 'error',
             message: 'Failed to fetch matches',
-            error: error.message
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
 
+// Get conversations - FIXED
 router.get('/conversations', protect, async (req, res) => {
     try {
         const conversations = await Conversation.find({
-            participants: req.user._id
+            participants: req.user.id
         })
         .populate({
             path: 'participants',
             select: 'name profilePicture',
-            match: { _id: { $ne: req.user._id } }
+            match: { _id: { $ne: req.user.id } }
         })
         .populate({
             path: 'lastMessage',
@@ -627,56 +583,71 @@ router.get('/conversations', protect, async (req, res) => {
 
         res.status(200).json({
             status: 'success',
+            results: conversations.length,
             data: conversations
         });
     } catch (error) {
         console.error('Error fetching conversations:', error);
         res.status(500).json({
             status: 'error',
-            message: 'Failed to fetch conversations'
+            message: 'Failed to fetch conversations',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });
 
-// Create new conversation
+// Create new conversation - FIXED
 router.post('/conversations', protect, async (req, res) => {
     try {
         const { participantId, initialMessage } = req.body;
 
+        if (!participantId) {
+            return res.status(400).json({
+                status: 'fail',
+                message: 'Participant ID is required'
+            });
+        }
+
         // Check if conversation already exists
         const existingConversation = await Conversation.findOne({
-            participants: { $all: [req.user._id, participantId] }
+            participants: { $all: [req.user.id, participantId] }
         });
 
         if (existingConversation) {
             return res.status(200).json({
                 status: 'success',
-                data: existingConversation
+                data: existingConversation,
+                message: 'Conversation already exists'
             });
         }
 
         // Create new conversation
         const conversation = await Conversation.create({
-            participants: [req.user._id, participantId]
+            participants: [req.user.id, participantId]
         });
 
         // Send initial message if provided
-        if (initialMessage) {
-            const message = await Message.create({
-                conversation: conversation._id,
-                sender: req.user._id,
-                content: initialMessage
-            });
+        if (initialMessage && initialMessage.trim()) {
+            try {
+                const message = await Message.create({
+                    conversation: conversation._id,
+                    sender: req.user.id,
+                    content: initialMessage.trim()
+                });
 
-            conversation.lastMessage = message._id;
-            await conversation.save();
+                conversation.lastMessage = message._id;
+                await conversation.save();
+            } catch (messageError) {
+                console.error('Error creating initial message:', messageError);
+                // Continue without initial message
+            }
         }
 
         await conversation.populate([
             {
                 path: 'participants',
                 select: 'name profilePicture',
-                match: { _id: { $ne: req.user._id } }
+                match: { _id: { $ne: req.user.id } }
             },
             {
                 path: 'lastMessage',
@@ -692,7 +663,8 @@ router.post('/conversations', protect, async (req, res) => {
         console.error('Error creating conversation:', error);
         res.status(500).json({
             status: 'error',
-            message: 'Failed to create conversation'
+            message: 'Failed to create conversation',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
 });

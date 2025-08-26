@@ -30,38 +30,54 @@ const SwipeCard = ({ user, isTop, onSwipe, style }) => {
     };
 
     const renderProfileImage = () => {
-        if (imageError || !user.profilePicture) {
-            return (
-                <div className={`w-full h-full flex items-center justify-center text-white text-6xl font-bold ${getAvatarFallback(user.name)}`}>
-                    {user.name?.charAt(0)?.toUpperCase() || '?'}
-                </div>
-            );
-        }
-
+    if (imageError || !user.profilePicture) {
         return (
-            <>
-                {!imageLoaded && (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
-                        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
-                    </div>
-                )}
-                <img
-                    src={user.profilePicture.startsWith('http') 
-                        ? user.profilePicture 
-                        : `${process.env.REACT_APP_API_URL}${user.profilePicture.startsWith('/') ? '' : '/'}${user.profilePicture}`
-                    }
-                    alt={user.name}
-                    className={`w-full h-full object-cover ${imageLoaded ? 'block' : 'hidden'}`}
-                    onLoad={() => setImageLoaded(true)}
-                    onError={() => {
-                        console.error('Failed to load profile picture:', user.profilePicture);
-                        setImageError(true);
-                        setImageLoaded(true);
-                    }}
-                />
-            </>
+            <div className={`w-full h-full flex items-center justify-center text-white text-6xl font-bold ${getAvatarFallback(user.name)}`}>
+                {user.name?.charAt(0)?.toUpperCase() || '?'}
+            </div>
         );
+    }
+
+    // Fix: Construct the correct image URL
+    const getImageUrl = (imagePath) => {
+        if (!imagePath) return null;
+        if (imagePath.startsWith('http')) return imagePath;
+        
+        // Remove /api from the base URL for static files and construct proper path
+        const baseUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:5001';
+        
+        // If it's just a filename, add the full uploads path
+        if (!imagePath.startsWith('/uploads/')) {
+            return `${baseUrl}/uploads/profile-pictures/${imagePath}`;
+        }
+        
+        return `${baseUrl}${imagePath}`;
     };
+
+    const imageUrl = getImageUrl(user.profilePicture);
+    console.log('Profile picture URL:', imageUrl); // Debug log
+
+    return (
+        <>
+            {!imageLoaded && (
+                <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-500 border-t-transparent" />
+                </div>
+            )}
+            <img
+                src={imageUrl}
+                alt={user.name}
+                className={`w-full h-full object-cover ${imageLoaded ? 'block' : 'hidden'}`}
+                onLoad={() => setImageLoaded(true)}
+                onError={() => {
+                    console.error('Failed to load profile picture:', imageUrl);
+                    setImageError(true);
+                    setImageLoaded(true);
+                }}
+            />
+        </>
+    );
+};
 
     return (
         <div className="relative w-full h-full flex flex-col items-center">

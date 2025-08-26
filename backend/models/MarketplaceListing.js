@@ -14,7 +14,20 @@ const marketplaceListingSchema = new mongoose.Schema({
         type: Number,
         required: [true, 'A listing must have a price']
     },
-    images: [String], // Array of image URLs or filenames
+    category: {
+        type: String,
+        enum: ['Electronics', 'Outdoor Gear', 'Clothing', 'Books', 'Accessories', 'Other'],
+        default: 'Other'
+    },
+    condition: {
+        type: String,
+        enum: ['New', 'Like New', 'Good', 'Fair', 'Poor'],
+        default: 'Good'
+    },
+    image: {
+        type: String,
+        default: null
+    }, 
     location: {
         type: {
             type: String,
@@ -34,12 +47,21 @@ const marketplaceListingSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
-    createdAt: {
-        type: Date,
-        default: Date.now
+    status: {
+        type: String,
+        enum: ['active', 'sold', 'inactive'],
+        default: 'active'
+    },
+    isAvailable: {
+        type: Boolean,
+        default: true
     }
+}, {
+    timestamps: true 
 });
 
 marketplaceListingSchema.index({ location: '2dsphere' });
+marketplaceListingSchema.index({ category: 1, status: 1 });
+marketplaceListingSchema.index({ createdBy: 1 });
 
 module.exports = mongoose.model('MarketplaceListing', marketplaceListingSchema);
