@@ -89,7 +89,7 @@ const SwipeToMatch = () => {
         try {
             console.log(`Attempting to swipe ${direction} on user:`, userId);
 
-            // Use the correct endpoint and payload format from your backend
+            // ✅ FIXED: Use correct field name that matches backend
             const response = await fetch(`${process.env.REACT_APP_API_URL}/matches/swipe`, {
                 method: 'POST',
                 credentials: 'include',
@@ -98,7 +98,7 @@ const SwipeToMatch = () => {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                 },
                 body: JSON.stringify({
-                    swipedId: userId,
+                    swipedUserId: userId, // ✅ Changed from 'swipedId' to 'swipedUserId'
                     action: direction === 'right' ? 'like' : 'reject'
                 })
             });
@@ -111,10 +111,10 @@ const SwipeToMatch = () => {
             const result = await response.json();
             console.log('Swipe result:', result);
 
-            // Handle the response according to your backend structure
+            // ✅ Handle the response according to your backend structure
             if (result.status === 'success') {
-                if (result.data.isMutualMatch) {
-                    const matchData = result.data.matchDetails?.matchedUser || potentialMatch;
+                if (result.data.match) { // ✅ Changed from 'isMutualMatch' to 'match'
+                    const matchData = result.data.otherUser || potentialMatch; // ✅ Use 'otherUser' field
                     setMatchedUser(matchData);
                     setShowMatchModal(true);
                     toast.success('It\'s a match! 🎉');
@@ -252,13 +252,20 @@ const SwipeToMatch = () => {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
                         <h2 className="text-2xl font-bold text-center mb-4">It's a Match! 🎉</h2>
+                        <div className="flex justify-center mb-4">
+                            <img 
+                                src={matchedUser.profilePicture || '/default-avatar.jpg'} 
+                                alt={matchedUser.name}
+                                className="w-20 h-20 rounded-full object-cover"
+                            />
+                        </div>
                         <p className="text-center mb-6">
                             You and {matchedUser.name} have liked each other!
                         </p>
                         <div className="flex justify-center space-x-4">
                             <button
                                 onClick={() => setShowMatchModal(false)}
-                                className="px-6 py-2 bg-gray-200 rounded-full"
+                                className="px-6 py-2 bg-gray-200 dark:bg-gray-600 rounded-full hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors"
                             >
                                 Keep Swiping
                             </button>
@@ -266,8 +273,9 @@ const SwipeToMatch = () => {
                                 onClick={() => {
                                     setShowMatchModal(false);
                                     // Add navigation to chat here if needed
+                                    console.log('Navigate to chat with:', matchedUser._id);
                                 }}
-                                className="px-6 py-2 bg-blue-500 text-white rounded-full"
+                                className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
                             >
                                 Send Message
                             </button>
@@ -277,7 +285,7 @@ const SwipeToMatch = () => {
             )}
 
             <div className="cards-container relative max-w-sm mx-auto pb-20">
-                {potentialMatches.slice(currentIndex, currentIndex + 3).map((user, index) => (
+                {currentIndex < potentialMatches.length && potentialMatches.slice(currentIndex, currentIndex + 3).map((user, index) => (
                     <SwipeCard
                         key={user._id}
                         user={user}
@@ -294,7 +302,7 @@ const SwipeToMatch = () => {
                 ))}
             </div>
 
-            {potentialMatches.length === 0 && !isLoading && (
+            {(currentIndex >= potentialMatches.length || potentialMatches.length === 0) && !isLoading && (
                 <div className="flex flex-col items-center justify-center h-64">
                     <div className="text-6xl mb-4">💔</div>
                     <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">No more potential matches</h2>
@@ -305,8 +313,19 @@ const SwipeToMatch = () => {
                         onClick={() => {
                             setIsLoading(true);
                             setError(null);
+                            setCurrentIndex(0);
                             // Trigger a fresh load
-                            window.location.reload();
+                            const loadMatches = async () => {
+                                try {
+                                    const matches = await fetchPotentialMatches();
+                                    setPotentialMatches(matches);
+                                    setIsLoading(false);
+                                } catch (error) {
+                                    setError(error.message);
+                                    setIsLoading(false);
+                                }
+                            };
+                            loadMatches();
                         }}
                         className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >

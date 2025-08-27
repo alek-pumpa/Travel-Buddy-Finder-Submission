@@ -3,33 +3,32 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const { protect } = require('../middleware/auth');
 const User = require('../models/User');
-const MatchService = require('../services/matchService');
-const Swipe = require('../models/Swipe');
 const Match = require('../models/Match');
+const Swipe = require('../models/Swipe');
 const Conversation = require('../models/Conversation');
-const Message = require('../models/Message'); // Added missing import
+const Message = require('../models/Message');
 
-// Rate limiting configuration
+// Rate limiting
 const matchesLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // Increased limit
+    windowMs: 15 * 60 * 1000, 
+    max: 300,
     message: 'Too many requests, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
-    skipSuccessfulRequests: true // Don't count successful requests
+    skipSuccessfulRequests: true 
 });
 
 const swipeLimiter = rateLimit({
-    windowMs: 60 * 1000, // 1 minute
-    max: 120, // Increased limit
+    windowMs: 60 * 1000,
+    max: 120,
     message: 'Swipe limit reached, please slow down.',
     standardHeaders: true,
     legacyHeaders: false,
-    skipFailedRequests: true, // Don't count failed requests
-    keyGenerator: (req) => req.user.id // Rate limit per user instead of IP
+    skipFailedRequests: true, 
+    keyGenerator: (req) => req.user.id 
 });
 
-// Helper function to get compatible personality types
+// Helper functions
 function getCompatiblePersonalityTypes(personalityType) {
     const compatibilityMap = {
         'adventurer': ['flexible', 'cultural', 'adventurer', 'planner'],
@@ -41,7 +40,6 @@ function getCompatiblePersonalityTypes(personalityType) {
     return compatibilityMap[personalityType] || ['flexible', 'adventurer', 'planner', 'cultural', 'relaxed'];
 }
 
-// Helper function to get compatible budget ranges
 function getBudgetRanges(budget) {
     const budgetRanges = {
         'low': ['low', 'medium'],
@@ -54,25 +52,9 @@ function getBudgetRanges(budget) {
     return budgetRanges[budget] || ['low', 'medium', 'high'];
 }
 
-// Helper function to get compatible travel styles
-function getCompatibleTravelStyles(travelStyle) {
-    const compatibilityMap = {
-        'solo': ['solo', 'flexible', 'group', 'adventure'],
-        'couple': ['couple', 'flexible', 'group', 'relaxation'],
-        'group': ['group', 'flexible', 'solo', 'adventure'],
-        'family': ['family', 'flexible', 'group', 'relaxation'],
-        'adventure': ['adventure', 'solo', 'group', 'flexible'],
-        'relaxation': ['relaxation', 'couple', 'family', 'flexible'],
-        'flexible': ['solo', 'couple', 'group', 'family', 'adventure', 'relaxation', 'flexible']
-    };
-    return compatibilityMap[travelStyle] || ['flexible'];
-}
-
-// Helper function to calculate match score
 function calculateMatchScore(user1, user2) {
-    let score = 50; // Start with base score
+    let score = 50; 
 
-    // Age compatibility (if both have age)
     if (user1.age && user2.age) {
         const ageDiff = Math.abs(user1.age - user2.age);
         if (ageDiff <= 3) score += 20;
@@ -81,7 +63,6 @@ function calculateMatchScore(user1, user2) {
         else if (ageDiff <= 20) score += 5;
     }
 
-    // Personality type compatibility
     if (user1.personalityType && user2.personalityType) {
         if (user1.personalityType === user2.personalityType) {
             score += 15;
@@ -90,9 +71,7 @@ function calculateMatchScore(user1, user2) {
         }
     }
 
-    // Travel preferences compatibility (if both have them)
     if (user1.travelPreferences && user2.travelPreferences) {
-        // Budget compatibility
         if (user1.travelPreferences.budget && user2.travelPreferences.budget) {
             if (user1.travelPreferences.budget === user2.travelPreferences.budget) {
                 score += 15;
@@ -101,16 +80,6 @@ function calculateMatchScore(user1, user2) {
             }
         }
 
-        // Travel style compatibility
-        if (user1.travelPreferences.travelStyle && user2.travelPreferences.travelStyle) {
-            if (user1.travelPreferences.travelStyle === user2.travelPreferences.travelStyle) {
-                score += 15;
-            } else if (getCompatibleTravelStyles(user1.travelPreferences.travelStyle).includes(user2.travelPreferences.travelStyle)) {
-                score += 8;
-            }
-        }
-
-        // Destination overlap
         if (user1.travelPreferences.destinations && user2.travelPreferences.destinations) {
             const commonDestinations = user1.travelPreferences.destinations.filter(dest =>
                 user2.travelPreferences.destinations.includes(dest)
@@ -118,7 +87,6 @@ function calculateMatchScore(user1, user2) {
             score += Math.min(15, commonDestinations.length * 5);
         }
 
-        // Interests overlap
         if (user1.travelPreferences.interests && user2.travelPreferences.interests) {
             const commonInterests = user1.travelPreferences.interests.filter(interest =>
                 user2.travelPreferences.interests.includes(interest)
@@ -127,34 +95,29 @@ function calculateMatchScore(user1, user2) {
         }
     }
 
-    // Bio similarity (simple check)
     if (user1.bio && user2.bio) {
         const commonWords = user1.bio.toLowerCase().split(' ')
             .filter(word => user2.bio.toLowerCase().includes(word) && word.length > 3);
         score += Math.min(10, commonWords.length * 2);
     }
 
-    // Has profile picture bonus
     if (user2.profilePicture) {
         score += 5;
     }
 
-    // Active recently bonus
     if (user2.lastActive && new Date(user2.lastActive) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)) {
         score += 5;
     }
 
-    // Has bio bonus
     if (user2.bio && user2.bio.length > 20) {
         score += 3;
     }
 
-    return Math.min(Math.max(score, 15), 100); // Keep between 15-100
+    return Math.min(Math.max(score, 15), 100);
 }
 
-// Helper function to calculate distance between coordinates
 function calculateDistance([lon1, lat1], [lon2, lat2]) {
-    const R = 6371; // Earth's radius in km
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -165,15 +128,49 @@ function calculateDistance([lon1, lat1], [lon2, lat2]) {
     return R * c;
 }
 
-// Get potential matches - IMPROVED AND FIXED
+// Debug route - remove in production
+router.get('/debug-all', protect, async (req, res) => {
+    try {
+        console.log('=== DEBUGGING MATCHES ===');
+        
+        const allMatches = await Match.find().lean();
+        console.log('Total matches in database:', allMatches.length);
+        
+        const userMatches = await Match.find({
+            users: req.user.id
+        }).populate('users', 'name').lean();
+        console.log('User matches:', userMatches.length);
+        
+        const userSwipes = await Swipe.find({
+            $or: [
+                { swiper_id: req.user.id },
+                { swiped_id: req.user.id }
+            ]
+        }).lean();
+        console.log('User swipes:', userSwipes.length);
+        
+        res.json({
+            userId: req.user.id,
+            allMatches: allMatches.length,
+            userMatches: userMatches,
+            userSwipes: userSwipes,
+            schema_status_enum: ['pending', 'accepted', 'rejected', 'expired']
+        });
+        
+    } catch (error) {
+        console.error('Debug error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get potential matches
 router.get('/potential', protect, matchesLimiter, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
         const skip = (page - 1) * limit;
 
-        // Get current user with fixed field access
-        const currentUser = await User.findById(req.user.id || req.user._id)
+        const currentUser = await User.findById(req.user.id)
             .select('name age bio travelPreferences personalityType languages location active lastActive')
             .lean();
 
@@ -184,40 +181,30 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
             });
         }
 
-        console.log('Current user:', currentUser._id);
+        console.log(`Finding potential matches for user: ${currentUser._id}`);
 
-        // Get users that current user has already swiped on
+        // Get already swiped users
         const swipedUsers = await Swipe.find({ 
-            $or: [
-                { swiper_id: currentUser._id },
-                { swiper: currentUser._id }
-            ]
-        }).select('swiped_id swiped').lean();
+            swiper_id: currentUser._id
+        }).select('swiped_id').lean();
 
-        const swipedUserIds = swipedUsers.map(swipe => 
-            swipe.swiped_id || swipe.swiped
-        ).filter(Boolean);
+        const swipedUserIds = swipedUsers.map(swipe => swipe.swiped_id).filter(Boolean);
+        console.log(`User has swiped on ${swipedUserIds.length} users`);
 
-        console.log('Already swiped on:', swipedUserIds.length, 'users');
-
-        // SIMPLIFIED: Basic filter conditions
         const basicFilterConditions = {
             _id: { 
                 $ne: currentUser._id,
                 $nin: swipedUserIds
             }
-            // Removed active field requirement - too restrictive
         };
 
         let potentialMatches = [];
         
-        // LEVEL 1: Try with travel preferences (if user has them)
+        // LEVEL 1: Preference-based matching
         if (currentUser.travelPreferences && Object.keys(currentUser.travelPreferences).length > 0) {
             console.log('Trying preference-based matching...');
             
             const preferenceConditions = { ...basicFilterConditions };
-            
-            // More lenient preference matching
             const preferenceFilters = [];
             
             if (currentUser.travelPreferences.budget) {
@@ -246,19 +233,18 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
 
             potentialMatches = await User.find(preferenceConditions)
                 .select('name age bio profilePicture travelPreferences personalityType languages location lastActive')
-                .limit(limit * 3) // Get more to allow for scoring
+                .limit(limit * 3)
                 .lean();
             
             console.log('Preference matches found:', potentialMatches.length);
         }
 
-        // LEVEL 2: If not enough matches, try age-based compatibility
+        // LEVEL 2: Age-based matching if needed
         if (potentialMatches.length < limit) {
             console.log('Not enough preference matches, trying age-based...');
             
             const ageConditions = { ...basicFilterConditions };
             
-            // Exclude users we already got
             if (potentialMatches.length > 0) {
                 ageConditions._id.$nin = [
                     ...ageConditions._id.$nin,
@@ -266,12 +252,10 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
                 ];
             }
 
-            // Add age filtering if available
             if (currentUser.age) {
-                const ageRange = 15; // Increased age range
                 ageConditions.age = {
-                    $gte: Math.max(18, currentUser.age - ageRange),
-                    $lte: currentUser.age + ageRange
+                    $gte: Math.max(18, currentUser.age - 15),
+                    $lte: currentUser.age + 15
                 };
             }
 
@@ -284,7 +268,7 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
             console.log('Age-based matches added:', ageMatches.length);
         }
 
-        // LEVEL 3: If still not enough, get any available users
+        // LEVEL 3: Any available users
         if (potentialMatches.length < limit) {
             console.log('Still not enough matches, getting any available users...');
             
@@ -301,7 +285,7 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
             const anyMatches = await User.find(anyUserConditions)
                 .select('name age bio profilePicture travelPreferences personalityType languages location lastActive')
                 .limit(limit)
-                .sort({ createdAt: -1 }) // Newest users first
+                .sort({ createdAt: -1 })
                 .lean();
 
             potentialMatches = [...potentialMatches, ...anyMatches];
@@ -317,10 +301,9 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
         // Process matches and calculate scores
         const processedMatches = uniqueMatches.map(match => {
             let distance = null;
-            let matchScore = 50; // Default score
+            let matchScore = 50;
 
             try {
-                // Calculate distance if both users have location data
                 if (match.location?.coordinates?.length === 2 && 
                     currentUser.location?.coordinates?.length === 2) {
                     distance = calculateDistance(
@@ -329,7 +312,6 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
                     );
                 }
 
-                // Calculate match score
                 matchScore = calculateMatchScore(currentUser, match);
             } catch (err) {
                 console.error('Error processing match:', err);
@@ -352,7 +334,7 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
 
         // Sort by match score, then by distance
         const sortedMatches = processedMatches.sort((a, b) => {
-            if (Math.abs(a.matchScore - b.matchScore) < 5) { // If scores are close
+            if (Math.abs(a.matchScore - b.matchScore) < 5) {
                 if (a.distance === null && b.distance === null) return 0;
                 if (a.distance === null) return 1;
                 if (b.distance === null) return -1;
@@ -390,21 +372,19 @@ router.get('/potential', protect, matchesLimiter, async (req, res) => {
     }
 });
 
-// Record a swipe action - FIXED
+// Record a swipe action
 router.post('/swipe', protect, swipeLimiter, async (req, res) => {
     try {
-        const { swipedId, action } = req.body;
+        const { swipedUserId, action } = req.body;
 
-        // Validate request body
-        if (!swipedId || !action || !['like', 'reject'].includes(action)) {
+        if (!swipedUserId || !action || !['like', 'reject'].includes(action)) {
             return res.status(400).json({
                 status: 'fail',
-                message: 'Invalid request. Required fields: swipedId, action (like/reject)'
+                message: 'Invalid request. Required fields: swipedUserId, action (like/reject)'
             });
         }
 
-        // Check if swiped user exists
-        const swipedUser = await User.findById(swipedId);
+        const swipedUser = await User.findById(swipedUserId);
         if (!swipedUser) {
             return res.status(404).json({
                 status: 'fail',
@@ -412,12 +392,9 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
             });
         }
 
-        // Check if already swiped
         const existingSwipe = await Swipe.findOne({
-            $or: [
-                { swiper_id: req.user.id, swiped_id: swipedId },
-                { swiper: req.user.id, swiped: swipedId }
-            ]
+            swiper_id: req.user.id,
+            swiped_id: swipedUserId
         });
 
         if (existingSwipe) {
@@ -427,12 +404,14 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
             });
         }
 
-        // Create swipe record
         const swipe = await Swipe.create({
             swiper_id: req.user.id,
-            swiped_id: swipedId,
-            action: action === 'like' ? 'like' : 'reject'
+            swiped_id: swipedUserId,
+            action: action,
+            timestamp: new Date()
         });
+
+        console.log('Swipe created:', swipe._id);
 
         // Check for mutual match if it's a like
         let isMatch = false;
@@ -440,71 +419,82 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
 
         if (action === 'like') {
             const mutualSwipe = await Swipe.findOne({
-                $or: [
-                    { swiper_id: swipedId, swiped_id: req.user.id, action: 'like' },
-                    { swiper: swipedId, swiped: req.user.id, action: 'like' }
-                ]
+                swiper_id: swipedUserId,
+                swiped_id: req.user.id,
+                action: 'like'
             });
 
             if (mutualSwipe) {
+                console.log('Mutual like detected! Creating match...');
                 isMatch = true;
                 
-                // Create match record
-                try {
-                    match = await Match.create({
-                        users: [req.user.id, swipedId],
-                        matchedOn: new Date(),
-                        status: 'active',
-                        matchScore: calculateMatchScore(
-                            await User.findById(req.user.id).lean(),
-                            swipedUser.toObject()
-                        )
-                    });
-                    console.log('Match created:', match._id);
-                } catch (matchError) {
-                    console.error('Error creating match:', matchError);
-                    // Continue even if match creation fails
+                const existingMatch = await Match.findOne({
+                    users: { $all: [req.user.id, swipedUserId] }
+                });
+                
+                if (!existingMatch) {
+                    try {
+                        const currentUser = await User.findById(req.user.id);
+                        
+                        let matchScore = 50;
+                        if (currentUser.travelPreferences && swipedUser.travelPreferences) {
+                            matchScore = calculateMatchScore(currentUser, swipedUser);
+                        }
+                        
+                        match = await Match.create({
+                            users: [req.user.id, swipedUserId],
+                            matchScore: matchScore,
+                            status: 'accepted',
+                            matchInitiatedBy: req.user.id,
+                            matchedOn: new Date(),
+                            notificationStatus: 'pending',
+                            commonInterests: [],
+                            metadata: {
+                                initialMessageSent: false,
+                                matchType: 'mutual'
+                            }
+                        });
+                        
+                        console.log('Match created successfully:', match._id);
+                        
+                    } catch (matchError) {
+                        console.error('Error creating match:', matchError);
+                    }
+                } else {
+                    match = existingMatch;
                 }
             }
         }
 
-        if (isMatch) {
-            res.status(201).json({
+        if (isMatch && match) {
+            res.status(200).json({
                 status: 'success',
+                message: "It's a match! 🎉",
                 data: {
-                    swipe,
-                    match,
-                    isMutualMatch: true,
-                    matchDetails: {
-                        matchScore: match?.matchScore || 50,
-                        matchedUser: {
-                            id: swipedUser._id,
-                            name: swipedUser.name,
-                            profilePicture: swipedUser.profilePicture
-                        }
+                    match: true,
+                    matchId: match._id,
+                    matchScore: match.matchScore,
+                    otherUser: {
+                        _id: swipedUser._id,
+                        name: swipedUser.name,
+                        profilePicture: swipedUser.profilePicture,
+                        age: swipedUser.age
                     }
-                },
-                message: "It's a match! You both liked each other."
+                }
             });
         } else {
-            res.status(201).json({
+            res.status(200).json({
                 status: 'success',
+                message: 'Swipe recorded successfully',
                 data: {
-                    swipe,
-                    isMutualMatch: false
+                    match: false,
+                    swipeId: swipe._id
                 }
             });
         }
+
     } catch (error) {
         console.error('Error recording swipe:', error);
-        
-        if (error.code === 11000) { // Duplicate key error
-            return res.status(400).json({
-                status: 'fail',
-                message: 'You have already swiped on this user'
-            });
-        }
-        
         res.status(500).json({
             status: 'error',
             message: 'Error recording swipe',
@@ -513,38 +503,53 @@ router.post('/swipe', protect, swipeLimiter, async (req, res) => {
     }
 });
 
-// Get user's matches - FIXED
+// Get user's matches
 router.get('/my-matches', protect, async (req, res) => {
     try {
         console.log('Fetching matches for user:', req.user.id);
         
-        // Find all matches where the current user is involved
         const matches = await Match.find({
             users: req.user.id,
-            status: { $in: ['active', 'pending'] } // Include both active and pending matches
+            status: { $in: ['accepted', 'pending'] }
         })
         .populate({
             path: 'users',
-            select: 'name age bio profilePicture location travelPreferences languages personalityType',
-            match: { _id: { $ne: req.user.id } } // Exclude current user
+            select: 'name age bio profilePicture location travelPreferences languages personalityType lastActive'
         })
-        .sort({ matchedOn: -1 }) // Most recent first
+        .sort({ matchedOn: -1 })
         .lean();
 
-        console.log(`Found ${matches.length} matches`);
+        console.log(`Found ${matches.length} raw matches`);
 
-        // Transform the data to include the other user info
         const transformedMatches = matches.map(match => {
-            const otherUser = match.users.find(user => user._id.toString() !== req.user.id.toString());
+            const otherUser = match.users.find(user => 
+                user._id.toString() !== req.user.id.toString()
+            );
             
+            if (!otherUser) {
+                console.log('No other user found for match:', match._id);
+                return null;
+            }
+
             return {
                 _id: match._id,
                 matchedOn: match.matchedOn,
                 matchScore: match.matchScore || 50,
                 status: match.status,
-                otherUser: otherUser
+                otherUser: {
+                    _id: otherUser._id,
+                    name: otherUser.name,
+                    age: otherUser.age,
+                    bio: otherUser.bio,
+                    profilePicture: otherUser.profilePicture,
+                    location: otherUser.location,
+                    travelPreferences: otherUser.travelPreferences,
+                    languages: otherUser.languages,
+                    personalityType: otherUser.personalityType,
+                    lastActive: otherUser.lastActive
+                }
             };
-        }).filter(match => match.otherUser); // Only include matches where we found the other user
+        }).filter(Boolean);
 
         console.log('Transformed matches:', transformedMatches.length);
 
@@ -564,28 +569,36 @@ router.get('/my-matches', protect, async (req, res) => {
     }
 });
 
-// Get conversations - FIXED
+// Get conversations
 router.get('/conversations', protect, async (req, res) => {
     try {
+        console.log('Fetching conversations for user:', req.user.id);
+        
         const conversations = await Conversation.find({
             participants: req.user.id
         })
-        .populate({
-            path: 'participants',
-            select: 'name profilePicture',
-            match: { _id: { $ne: req.user.id } }
-        })
-        .populate({
-            path: 'lastMessage',
-            select: 'content sender timestamp'
-        })
-        .sort({ updatedAt: -1 });
-
+        .populate([
+            {
+                path: 'participants',
+                select: 'name profilePicture lastActive',
+                match: { _id: { $ne: req.user.id } }
+            },
+            {
+                path: 'lastMessage',
+                select: 'content sender timestamp'
+            }
+        ])
+        .sort({ updatedAt: -1 })
+        .lean();
+        
+        console.log(`Found ${conversations.length} conversations`);
+        
         res.status(200).json({
             status: 'success',
             results: conversations.length,
             data: conversations
         });
+        
     } catch (error) {
         console.error('Error fetching conversations:', error);
         res.status(500).json({
@@ -596,10 +609,12 @@ router.get('/conversations', protect, async (req, res) => {
     }
 });
 
-// Create new conversation - FIXED
+// Create conversation
 router.post('/conversations', protect, async (req, res) => {
     try {
         const { participantId, initialMessage } = req.body;
+        
+        console.log('Creating conversation between:', req.user.id, 'and', participantId);
 
         if (!participantId) {
             return res.status(400).json({
@@ -608,12 +623,35 @@ router.post('/conversations', protect, async (req, res) => {
             });
         }
 
+        const [currentUser, otherUser] = await Promise.all([
+            User.findById(req.user.id),
+            User.findById(participantId)
+        ]);
+
+        if (!otherUser) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Participant not found'
+            });
+        }
+
         // Check if conversation already exists
-        const existingConversation = await Conversation.findOne({
+        let existingConversation = await Conversation.findOne({
             participants: { $all: [req.user.id, participantId] }
-        });
+        }).populate([
+            {
+                path: 'participants',
+                select: 'name profilePicture',
+                match: { _id: { $ne: req.user.id } }
+            },
+            {
+                path: 'lastMessage',
+                select: 'content sender timestamp'
+            }
+        ]);
 
         if (existingConversation) {
+            console.log('Conversation already exists:', existingConversation._id);
             return res.status(200).json({
                 status: 'success',
                 data: existingConversation,
@@ -623,8 +661,12 @@ router.post('/conversations', protect, async (req, res) => {
 
         // Create new conversation
         const conversation = await Conversation.create({
-            participants: [req.user.id, participantId]
+            participants: [req.user.id, participantId],
+            createdAt: new Date(),
+            updatedAt: new Date()
         });
+
+        console.log('New conversation created:', conversation._id);
 
         // Send initial message if provided
         if (initialMessage && initialMessage.trim()) {
@@ -632,17 +674,21 @@ router.post('/conversations', protect, async (req, res) => {
                 const message = await Message.create({
                     conversation: conversation._id,
                     sender: req.user.id,
-                    content: initialMessage.trim()
+                    content: initialMessage.trim(),
+                    timestamp: new Date()
                 });
 
                 conversation.lastMessage = message._id;
+                conversation.updatedAt = new Date();
                 await conversation.save();
+                
+                console.log('Initial message created:', message._id);
             } catch (messageError) {
                 console.error('Error creating initial message:', messageError);
-                // Continue without initial message
             }
         }
 
+        // Populate the conversation before returning
         await conversation.populate([
             {
                 path: 'participants',
@@ -657,13 +703,161 @@ router.post('/conversations', protect, async (req, res) => {
 
         res.status(201).json({
             status: 'success',
-            data: conversation
+            data: conversation,
+            message: 'Conversation created successfully'
         });
+
     } catch (error) {
         console.error('Error creating conversation:', error);
         res.status(500).json({
             status: 'error',
             message: 'Failed to create conversation',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Get messages for a conversation
+router.get('/conversations/:conversationId/messages', protect, async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { page = 1, limit = 50 } = req.query;
+        
+        console.log(`Fetching messages for conversation ${conversationId}`);
+        
+        const conversation = await Conversation.findOne({
+            _id: conversationId,
+            participants: req.user.id
+        });
+        
+        if (!conversation) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Conversation not found or access denied'
+            });
+        }
+        
+        const skip = (page - 1) * limit;
+        
+        const messages = await Message.find({
+            conversation: conversationId
+        })
+        .populate('sender', 'name profilePicture')
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean();
+        
+        messages.reverse();
+        
+        console.log(`Found ${messages.length} messages for conversation ${conversationId}`);
+        
+        res.status(200).json({
+            status: 'success',
+            results: messages.length,
+            data: messages
+        });
+        
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to fetch messages',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Send a message
+router.post('/conversations/:conversationId/messages', protect, async (req, res) => {
+    try {
+        const { conversationId } = req.params;
+        const { content } = req.body;
+        
+        console.log(`Sending message to conversation ${conversationId}`);
+        
+        if (!content || !content.trim()) {
+            return res.status(400).json({
+                status: 'fail',
+                message: 'Message content is required'
+            });
+        }
+        
+        const conversation = await Conversation.findOne({
+            _id: conversationId,
+            participants: req.user.id
+        });
+        
+        if (!conversation) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Conversation not found or access denied'
+            });
+        }
+        
+        const message = await Message.create({
+            conversation: conversationId,
+            sender: req.user.id,
+            content: content.trim(),
+            timestamp: new Date()
+        });
+        
+        conversation.lastMessage = message._id;
+        conversation.updatedAt = new Date();
+        await conversation.save();
+        
+        await message.populate('sender', 'name profilePicture');
+        
+        console.log('Message created:', message._id);
+        
+        res.status(201).json({
+            status: 'success',
+            data: message
+        });
+        
+    } catch (error) {
+        console.error('Error sending message:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to send message',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+});
+
+// Delete a match
+router.delete('/:matchId', protect, async (req, res) => {
+    try {
+        const { matchId } = req.params;
+        
+        console.log(`Deleting match ${matchId} for user ${req.user.id}`);
+        
+        const match = await Match.findOne({
+            _id: matchId,
+            users: req.user.id
+        });
+        
+        if (!match) {
+            return res.status(404).json({
+                status: 'fail',
+                message: 'Match not found'
+            });
+        }
+        
+        await Match.findByIdAndDelete(matchId);
+        
+        console.log('Match deleted successfully');
+        
+        res.status(200).json({
+            status: 'success',
+            message: 'Match deleted successfully'
+        });
+        
+    } catch (error) {
+        console.error('Error deleting match:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to delete match',
             details: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
     }
