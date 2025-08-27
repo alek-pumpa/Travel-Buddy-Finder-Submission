@@ -183,14 +183,14 @@ const Messages = () => {
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-8">
                 {/* Header */}
-                <div className="mb-6">
+                <div className="mb-6 pt-2.5"> {/* Changed from pt-6 to pt-2.5 for 10px */}
                     <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                         Messages
                     </h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                        Chat with your travel matches
+                    Chat with your travel matches
                     </p>
                     <button
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors mb-4"
@@ -199,7 +199,6 @@ const Messages = () => {
                         + New Group Chat
                     </button>
                 </div>
-
                 {/* Group Creation Modal */}
                 {showGroupModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -276,7 +275,7 @@ const Messages = () => {
                 {/* Conversations List */}
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
                     {conversations.length === 0 ? (
-                        <div className="text-center py-12">
+                        <div className="text-center py-6 px-4">
                             <div className="text-6xl mb-4">💬</div>
                             <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                                 No conversations yet
